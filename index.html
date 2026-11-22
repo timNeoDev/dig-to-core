@@ -1,0 +1,1367 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Копай до ядра</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{height:100%;overflow:hidden;background:#111;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff}
+canvas#c{display:block;width:100%;height:100%;touch-action:none}
+.hide{display:none!important}
+#hud{position:fixed;z-index:5;top:0;left:0;right:0;padding:10px 12px;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.chip{background:rgba(0,0,0,.55);border-radius:12px;padding:8px 12px;font-weight:700;font-size:15px;white-space:nowrap}
+.chip.warn{background:rgba(200,40,30,.85)}
+#fuelWrap{position:relative;height:28px;background:rgba(0,0,0,.55);border-radius:14px;overflow:hidden;max-width:340px}
+#fuelWrap.warn{box-shadow:0 0 0 2px #ff4d3d}
+#fuel{height:100%;background:linear-gradient(90deg,#ff5a36,#ffd23f);width:100%;transition:width .15s}
+#fuelTxt{position:absolute;inset:0;font-size:12px;font-weight:800;line-height:28px;padding:0 14px;text-shadow:0 1px 2px #000}
+#quest{pointer-events:auto;cursor:pointer;background:rgba(0,0,0,.55);border-radius:12px;padding:8px 12px;font-size:13px;font-weight:700;max-width:340px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#quest.done{background:rgba(46,160,67,.9)}
+.warn{animation:blink .5s steps(2) infinite}
+@keyframes blink{50%{filter:brightness(1.7)}}
+.btn{pointer-events:auto;border:0;border-radius:14px;background:#ffcc33;color:#2b1d00;font-weight:800;font-size:15px;padding:10px 14px;cursor:pointer;box-shadow:0 3px 0 #b8860b;font-family:inherit}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 #b8860b}
+.btn:disabled{background:#6b6b6b;color:#ccc;box-shadow:0 3px 0 #3d3d3d;cursor:default;transform:none}
+.btn.alt{background:#5ad1ff;box-shadow:0 3px 0 #1d7ea3;color:#002333}
+.btn.dark{background:#3a3a3a;color:#fff;box-shadow:0 3px 0 #1a1a1a}
+.btn.red{background:#e0483b;color:#fff;box-shadow:0 3px 0 #8f2a22}
+.btn.ghost{background:rgba(0,0,0,.55);color:#fff;box-shadow:none;padding:10px 14px}
+.badge{position:relative}
+.badge.on::after{content:'';position:absolute;top:-4px;right:-4px;width:13px;height:13px;border-radius:50%;background:#ff3b3b;border:2px solid #fff}
+.pad{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom));display:flex;gap:10px;z-index:4}
+#padL{left:12px}#padR{right:12px}
+body.swap #padL{left:auto;right:12px}body.swap #padR{right:auto;left:12px}
+.pb{width:68px;height:68px;border-radius:18px;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.28);font-size:26px;color:#fff;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
+body.big .pb{width:84px;height:84px;font-size:32px}
+.pb.on{background:rgba(255,204,51,.5)}
+#modal{position:fixed;z-index:10;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px}
+#modal.show{display:flex}
+.card{background:#26211c;border:2px solid #5a4a36;border-radius:20px;padding:18px;width:100%;max-width:430px;max-height:90vh;overflow:auto;-webkit-overflow-scrolling:touch}
+.card h2{font-size:22px;margin-bottom:10px}
+.card h3{font-size:15px;margin:8px 0 0;opacity:.8}
+.card p{opacity:.85;line-height:1.4;margin-bottom:12px}
+.items{display:flex;flex-wrap:wrap;gap:7px;margin:6px 0 14px}
+.item{background:rgba(255,255,255,.08);border-radius:10px;padding:8px 12px;font-size:15px}
+.total{font-size:20px;font-weight:800;margin-bottom:12px}
+.col{display:flex;flex-direction:column;gap:9px}
+.up{display:flex;justify-content:space-between;align-items:center;gap:10px;background:rgba(255,255,255,.06);border-radius:12px;padding:10px 12px}
+.up small{display:block;opacity:.7;font-weight:400;margin-top:2px}
+.stack{display:flex;flex-direction:column;gap:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin-bottom:12px}
+.cell{background:rgba(255,255,255,.07);border-radius:12px;padding:12px 8px;text-align:center;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.cell .big{font-size:30px}
+.cell.lock{opacity:.55}
+.cell.cur{box-shadow:0 0 0 2px #ffcc33}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:12px}
+.day{background:rgba(255,255,255,.07);border-radius:10px;padding:8px 2px;text-align:center;font-size:12px;line-height:1.35}
+.day b{font-size:16px;display:block}
+.day.got{opacity:.4}
+.day.cur{box-shadow:0 0 0 2px #ffcc33;background:rgba(255,204,51,.15)}
+.q{background:rgba(255,255,255,.06);border-radius:12px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.q small{display:block;opacity:.7;margin-top:2px}
+.prog{height:8px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden;margin-top:6px}
+.prog i{display:block;height:100%;background:#5ad1ff}
+.set{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px;background:rgba(255,255,255,.06);border-radius:12px;cursor:pointer}
+.set input[type=range]{width:150px;accent-color:#ffcc33}
+.set input[type=checkbox]{width:22px;height:22px;accent-color:#ffcc33}
+.lb{display:flex;justify-content:space-between;gap:10px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.05);margin-bottom:6px}
+.lb.me{background:rgba(255,204,51,.22)}
+#banner{position:fixed;z-index:6;top:32%;left:50%;transform:translate(-50%,-50%) scale(.9);background:rgba(0,0,0,.75);padding:14px 22px;border-radius:16px;font-size:20px;font-weight:800;text-align:center;opacity:0;transition:opacity .4s,transform .4s;pointer-events:none;max-width:92vw}
+#banner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#toast{position:fixed;z-index:6;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);padding:10px 16px;border-radius:12px;font-weight:700;opacity:0;transition:opacity .3s;pointer-events:none;text-align:center;max-width:90vw}
+#toast.show{opacity:1}
+#hint{position:fixed;bottom:104px;left:0;right:0;text-align:center;font-size:13px;opacity:.65;pointer-events:none;padding:0 16px}
+@media (hover:hover) and (pointer:fine){.pad{opacity:.55}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="row">
+    <span class="chip" id="money">💰 0</span>
+    <span class="chip" id="depth">📏 0 м</span>
+    <span class="chip" id="bag">🎒 0/6</span>
+    <span class="chip hide" id="star">⭐</span>
+  </div>
+  <div id="fuelWrap"><div id="fuel"></div><div id="fuelTxt">ТОПЛИВО</div></div>
+  <div id="quest"></div>
+  <div class="row">
+    <button class="btn hide" id="homeBtn">🏠 Наверх</button>
+    <button class="btn" id="shopBtn">🛒 Магазин</button>
+    <button class="btn alt hide" id="bombBtn">💣 0</button>
+    <button class="btn ghost badge" id="menuBtn" aria-label="Меню">☰ Меню</button>
+  </div>
+</div>
+
+<div class="pad" id="padL">
+  <div class="pb" data-d="l">◀</div>
+  <div class="pb" data-d="r">▶</div>
+</div>
+<div class="pad" id="padR">
+  <div class="pb" data-d="u">▲</div>
+  <div class="pb" data-d="d">▼</div>
+</div>
+
+<div id="hint">Зажми ▲ — ранец: висишь и копаешь вверх/вбок · ▼+◀/▶ — лесенкой вниз · B — динамит</div>
+<div id="banner"></div>
+<div id="toast"></div>
+<div id="modal"><div class="card" id="card"></div></div>
+
+<script>
+(() => {
+'use strict';
+
+// ===================== ДАННЫЕ =====================
+const COLS = 13, ROWS = 300, M_PER_TILE = 3, SAVE_KEY = 'dig2core_v1', PREF_KEY = 'dig2core_set', LB_NAME = 'depth';
+const EF = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+
+const ORES = [
+  {id:'coal',   e:'⚫', n:'Уголь',            p:3},
+  {id:'iron',   e:'⚙️', n:'Железо',           p:8},
+  {id:'gold',   e:'🟡', n:'Золото',           p:20},
+  {id:'bone',   e:'🦴', n:'Кость',            p:35},
+  {id:'amber',  e:'🍯', n:'Янтарь',           p:60},
+  {id:'skull',  e:'🦖', n:'Череп динозавра',  p:220},
+  {id:'coin',   e:'🪙', n:'Древняя монета',   p:90},
+  {id:'relic',  e:'🏺', n:'Амфора',           p:150},
+  {id:'crown',  e:'👑', n:'Корона',           p:500},
+  {id:'alien',  e:'👽', n:'Пришелец?!',       p:400},
+  {id:'ufo',    e:'🛸', n:'Деталь НЛО',       p:700},
+  {id:'crystal',e:'💎', n:'Кристалл',         p:1000},
+  {id:'shard',  e:'🔮', n:'Осколок ядра',     p:2000},
+];
+const OI = {}; ORES.forEach((o, i) => OI[o.id] = i);
+
+const LAYERS = [
+  {name:'Почва',           from:1,   hard:1,   c:'#8a5a2e', d:'#3a2413', ores:[['coal',.12],['iron',.035]]},
+  {name:'Камень',          from:30,  hard:2.5, c:'#6f6f78', d:'#26262b', ores:[['coal',.04],['iron',.08],['gold',.03]]},
+  {name:'Слой динозавров', from:70,  hard:4,   c:'#9c6b3c', d:'#33210f', ores:[['bone',.07],['amber',.035],['gold',.03],['skull',.006]]},
+  {name:'Древний город',   from:120, hard:6,   c:'#b39556', d:'#3b2f17', ores:[['coin',.06],['relic',.035],['crown',.006]]},
+  {name:'База пришельцев', from:180, hard:9,   c:'#2f5f52', d:'#0e2520', ores:[['alien',.045],['ufo',.025],['crystal',.008]]},
+  {name:'Ядро Земли',      from:250, hard:14,  c:'#8a2d14', d:'#2a0a03', ores:[['crystal',.04],['shard',.035]]},
+];
+// опасности по слоям: вероятность лавового кармана и газа
+const HAZ = {lava:[0, 0, .006, .01, .014, .024], gas:[0, 0, .004, .008, .012, .016]};
+
+const UP = {
+  pick:{name:'⛏ Кирка',  vals:[1,1.6,2.5,4,6,9,14],       cost:[0,60,250,800,2500,7000,20000], f:v=>'сила '+v},
+  bag: {name:'🎒 Рюкзак', vals:[6,10,16,24,34,48,64],      cost:[0,40,160,500,1500,4500,12000], f:v=>v+' мест'},
+  tank:{name:'⛽ Бак',    vals:[30,50,80,120,170,240,330], cost:[0,40,160,500,1500,4500,12000], f:v=>v+' топлива'},
+  lamp:{name:'🔦 Фонарь', vals:[1,2,3,4,5,6,7],            cost:[0,50,200,600,1800,5000,13000], f:v=>'свет ×'+v},
+};
+const SENSORS = [
+  {k:'fuel', n:'⛽ Датчик топлива',  d:'Пищит и мигает при 30% и 12% топлива', c:150},
+  {k:'bag',  n:'🎒 Датчик рюкзака', d:'Предупредит, когда останется 2 места',  c:100},
+];
+const SKINS = [
+  {id:'classic', n:'Классика', body:'#ffcc33', acc:'#e0a800', win:'#1f3352', eye:'#7ff0ff', price:0},
+  {id:'mole',    n:'Крот',     body:'#8a5d3b', acc:'#6b4429', win:'#2a1a10', eye:'#ffd1dc', price:800,   x:'mole'},
+  {id:'rocket',  n:'Ракета',   body:'#f1f1f1', acc:'#e53935', win:'#1e88e5', eye:'#ffffff', price:2500,  x:'fins'},
+  {id:'alien',   n:'Пришелец', body:'#6ee26e', acc:'#3fae3f', win:'#14301a', eye:'#ff5cff', price:'ad',  x:'antennas'},
+  {id:'neon',    n:'Неон',     body:'#1d1b33', acc:'#ff2fd6', win:'#00e5ff', eye:'#ffffff', price:9000,  x:'glow', drill:'#00e5ff'},
+  {id:'gold',    n:'Золотой',  body:'#ffd700', acc:'#c99a00', win:'#5a3e00', eye:'#fff6b0', price:30000, x:'sparkle', drill:'#fff1a8'},
+];
+const DAILY_MUL = [1, 1.5, 2, 2.5, 3, 4, 6];
+const GIFT_EVERY = 15 * 60 * 1000;
+
+const pickPower = () => UP.pick.vals[S.pick];
+const bagCap    = () => UP.bag.vals[S.bag];
+const tankCap   = () => UP.tank.vals[S.tank];
+const layerIdx = y => { let i = 0; for (let k = 0; k < LAYERS.length; k++) if (y >= LAYERS[k].from) i = k; return i; };
+const oreLayer = i => LAYERS.findIndex(L => L.ores.some(o => o[0] === ORES[i].id));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fmt = n => Math.floor(n).toLocaleString('ru-RU');
+const fmtM = x => String(Math.round(x * 100) / 100).replace('.', ',');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// тайлы: 0 пусто, 1 грунт, 2 валун, 3 мантия, 4 лава, 5 газ, 10+i руда
+function generate(seed){
+  const r = rng(seed), w = new Uint8Array(COLS * ROWS);
+  for (let y = 1; y < ROWS; y++){
+    const L = LAYERS[layerIdx(y)];
+    for (let x = 0; x < COLS; x++){
+      let t = 1;
+      if (y === ROWS - 1) t = 3;
+      else {
+        const roll = r(), bonus = y < 12 ? 1.5 : 1; let acc = 0;
+        for (const [id, p] of L.ores){ acc += p * bonus; if (roll < acc){ t = 10 + OI[id]; break; } }
+        if (t === 1 && y > 8 && r() < .05) t = 2;
+      }
+      w[y * COLS + x] = t;
+    }
+  }
+  // опасности — вторым проходом
+  for (let y = 10; y < ROWS - 2; y++){
+    const li = layerIdx(y);
+    for (let x = 0; x < COLS; x++){
+      const i = y * COLS + x; if (w[i] !== 1) continue;
+      if (r() < HAZ.lava[li]){
+        for (const [dx, dy] of [[0,0],[1,0],[0,1],[1,1],[-1,0]]){
+          const nx = x + dx, ny = y + dy; if (nx < 0 || nx >= COLS || ny >= ROWS - 1) continue;
+          if ((dx === 0 && dy === 0) || r() < .65) if (w[ny * COLS + nx] === 1) w[ny * COLS + nx] = 4;
+        }
+      } else if (r() < HAZ.gas[li]) w[i] = 5;
+    }
+  }
+  return w;
+}
+
+// ===================== НАСТРОЙКИ =====================
+const SET = {mus:.6, sfx:.8, shake:true, big:false, swap:false, hints:true};
+try { Object.assign(SET, JSON.parse(localStorage.getItem(PREF_KEY) || '{}')); } catch(e){}
+const savePrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(SET)); } catch(e){} };
+
+// ===================== СОСТОЯНИЕ =====================
+let S, world;
+const P = {x:6, y:0, fx:6, fy:0, moving:false, sx:0, sy:0, tx:0, ty:0, t:0, dur:.15, face:1, jet:false};
+let dig = null, paused = false, camY = 0, time = 0, shakeT = 0, hintHidden = false;
+const parts = [], floats = [], pending = [], flashes = [], wob = new Map();
+const FALLING = -1;
+
+function newState(){
+  return {money:0, pick:0, bag:0, tank:0, lamp:0, best:0, seen:0, cargo:[], fuel:UP.tank.vals[0], x:6, y:0,
+    seed:(Math.random() * 1e9) | 0, won:false, intro:false, giftAt:0, ts:0,
+    found:{}, quests:[], daily:{last:'', streak:0}, bombs:0, sens:{fuel:false, bag:false, fuelOn:true, bagOn:true},
+    skins:['classic'], skin:'classic', adSkin:0, rebirths:0, blocks:0};
+}
+const curX = () => P.moving ? P.tx : P.x;
+const curY = () => P.moving ? P.ty : P.y;
+const occupied = (x, y) => (P.x === x && P.y === y) || (P.moving && P.tx === x && P.ty === y);
+
+function encodeWorld(){ let s = ''; for (let i = 0; i < world.length; i++) s += String.fromCharCode(48 + world[i]); return s; }
+function decodeWorld(s, seed){
+  if (typeof s !== 'string' || s.length !== COLS * ROWS) return generate(seed);
+  const w = new Uint8Array(COLS * ROWS); for (let i = 0; i < w.length; i++) w[i] = s.charCodeAt(i) - 48; return w;
+}
+let cloudDirty = false;
+function snapshot(){ S.x = curX(); S.y = curY(); return {S, w:encodeWorld()}; }
+function save(){
+  if (SHOT) return; // режим скриншотов ничего не сохраняет
+  S.ts = Date.now();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); } catch(e){}
+  cloudDirty = true;
+}
+function load(){
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw){ const d = JSON.parse(raw); S = Object.assign(newState(), d.S); world = decodeWorld(d.w, S.seed); return; }
+  } catch(e){}
+  S = newState(); world = generate(S.seed);
+}
+function applySave(d){
+  S = Object.assign(newState(), d.S); world = decodeWorld(d.w, S.seed);
+  placePlayer(); ensureQuests(); hud();
+}
+function placePlayer(){
+  P.moving = false; dig = null; pending.length = 0; wob.clear();
+  P.x = P.fx = clamp(S.x | 0, 0, COLS - 1); P.y = P.fy = clamp(S.y | 0, 0, ROWS - 2);
+  if (tile(P.x, P.y) !== 0){ P.y = P.fy = 0; }
+  if (P.y === 0) regrowTop();
+  if (TS) camY = P.fy * TS - H * .45;
+}
+
+const tile = (x, y) => (x < 0 || x >= COLS || y < 0 || y >= ROWS) ? 3 : world[y * COLS + x];
+const setTile = (x, y, v) => { world[y * COLS + x] = v; };
+function hardness(x, y){
+  const t = tile(x, y); if (t === 3) return Infinity;
+  const h = LAYERS[layerIdx(y)].hard;
+  return t === 2 ? h * 2.5 : h;
+}
+const needLevel = h => { for (let i = 0; i < UP.pick.vals.length; i++) if (UP.pick.vals[i] * 3 >= h) return i + 1; return 0; };
+const foundCount = () => Object.keys(S.found).length;
+const rebirthMult = () => 1 + .5 * S.rebirths;
+const sellMult = () => rebirthMult() * (1 + .02 * foundCount());
+const price = i => Math.round(ORES[i].p * sellMult());
+const cargoValue = () => S.cargo.reduce((a, i) => a + price(i), 0);
+const nextPickCost = () => UP.pick.cost[Math.min(S.pick + 1, UP.pick.cost.length - 1)];
+const bombPrice = () => Math.max(25, Math.round(nextPickCost() * .06));
+const totalScore = () => (S.rebirths * (ROWS - 2) + S.best) * M_PER_TILE;
+const sensOn = k => S.sens[k] && S.sens[k + 'On'] !== false;
+
+// ===================== ЯНДЕКС SDK =====================
+let ysdk = null, player = null, lbObj = null, lastLbScore = 0;
+function loadSDK(){
+  return new Promise(res => {
+    const done = () => res(); const s = document.createElement('script');
+    s.src = '/sdk.js';
+    s.onload = () => { try { YaGames.init().then(sdk => { ysdk = sdk; done(); }).catch(done); } catch(e){ done(); } };
+    s.onerror = done; document.head.appendChild(s); setTimeout(done, 2500);
+  });
+}
+function gameplay(on){ try { const g = ysdk && ysdk.features && ysdk.features.GameplayAPI; if (g) on ? g.start() : g.stop(); } catch(e){} }
+// полноэкранная реклама: только в паузах (после обычной продажи), каждая 3-я продажа,
+// не чаще раза в 3 минуты и не в первые 3 минуты игры
+let lastAdAt = Date.now(), salesCount = 0;
+function maybeInterstitial(){
+  salesCount++;
+  if (!ysdk || salesCount % 3 !== 0 || Date.now() - lastAdAt < 180000) return;
+  lastAdAt = Date.now();
+  SND.adPause(true); gameplay(false); paused = true;
+  const done = () => { lastAdAt = Date.now(); SND.adPause(false); paused = modal.classList.contains('show'); if (!paused) gameplay(true); };
+  try { ysdk.adv.showFullscreenAdv({callbacks:{onClose: done, onError: done}}); } catch(e){ done(); }
+}
+function showRewarded(onReward){
+  if (!ysdk){ onReward(); return; } // локально рекламы нет — сразу награда
+  let got = false;
+  SND.adPause(true); // во время рекламы игра должна молчать (требование Яндекса)
+  try {
+    ysdk.adv.showRewardedVideo({callbacks:{
+      onRewarded: () => { got = true; },
+      onClose: () => { lastAdAt = Date.now(); SND.adPause(false); if (got) onReward(); },
+      onError: () => { SND.adPause(false); toast('Реклама недоступна, попробуй позже'); },
+    }});
+  } catch(e){ SND.adPause(false); toast('Реклама недоступна'); }
+}
+// облачное сохранение
+async function initCloud(){
+  if (!ysdk) return;
+  try { player = await ysdk.getPlayer({scopes:false}); } catch(e){ return; }
+  try {
+    const d = await player.getData(['save']);
+    if (d && d.save && d.save.S && (d.save.S.ts || 0) > (S.ts || 0)){ applySave(d.save); toast('☁️ Прогресс загружен из облака'); }
+  } catch(e){}
+  setInterval(cloudFlush, 20000);
+}
+function cloudFlush(){
+  if (!player || !cloudDirty) return; cloudDirty = false;
+  try { const p = player.setData({save:snapshot()}, false); if (p && p.catch) p.catch(() => {}); } catch(e){}
+}
+// рейтинг (поддерживает новый и старый API лидербордов)
+const isAuthed = () => { try { return !!player && (player.isAuthorized ? player.isAuthorized() : player.getMode() !== 'lite'); } catch(e){ return false; } };
+async function lbApi(){
+  if (!ysdk) return null;
+  if (lbObj) return lbObj;
+  try {
+    if (ysdk.leaderboards && ysdk.leaderboards.setScore){
+      lbObj = {set:v => ysdk.leaderboards.setScore(LB_NAME, v), get:() => ysdk.leaderboards.getEntries(LB_NAME, {quantityTop:10, includeUser:true, quantityAround:2})};
+    } else if (ysdk.getLeaderboards){
+      const lb = await ysdk.getLeaderboards();
+      lbObj = {set:v => lb.setLeaderboardScore(LB_NAME, v), get:() => lb.getLeaderboardEntries(LB_NAME, {quantityTop:10, includeUser:true, quantityAround:2})};
+    }
+  } catch(e){}
+  return lbObj;
+}
+async function lbSubmit(){
+  const sc = totalScore(); if (sc <= lastLbScore || !isAuthed()) return;
+  const lb = await lbApi(); if (!lb) return;
+  try { await lb.set(sc); lastLbScore = sc; } catch(e){}
+}
+
+// ===================== ЗВУК (синтез, без файлов) =====================
+const SND = (() => {
+  let ac = null, master, sfxBus, musBus, noiseBuf, drill = null, inAd = false, hidden = false;
+  let step = 0, nextT = 0, layer = 0, playLayer = 0;
+  const mf = m => 440 * Math.pow(2, (m - 69) / 12);
+  const live = () => ac && ac.state === 'running';
+  const THEMES = [
+    {bpm:104, ch:[[60,64,67],[55,59,62],[57,60,64],[53,57,60]]}, // почва — бодро
+    {bpm:96,  ch:[[57,60,64],[53,57,60],[48,52,55],[55,59,62]]}, // камень
+    {bpm:100, ch:[[50,53,57],[55,59,62],[50,53,57],[48,52,55]]}, // динозавры
+    {bpm:88,  ch:[[52,55,59],[53,57,60],[52,55,59],[50,53,57]]}, // древний город — загадочно
+    {bpm:84,  ch:[[48,52,56],[50,54,58],[52,56,60],[50,54,58]]}, // пришельцы — жутковато
+    {bpm:120, ch:[[48,51,55],[44,48,51],[46,50,53],[43,47,50]]}, // ядро — напряжённо
+  ];
+  function applyVol(){ if (!ac) return; sfxBus.gain.value = SET.sfx; musBus.gain.value = SET.mus * .45; }
+  function init(){
+    if (ac){ resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    ac = new AC();
+    master = ac.createGain(); master.gain.value = .8; master.connect(ac.destination);
+    sfxBus = ac.createGain(); sfxBus.connect(master);
+    musBus = ac.createGain(); musBus.connect(master);
+    applyVol();
+    noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    nextT = ac.currentTime + .1;
+    setInterval(schedule, 50);
+  }
+  function resume(){ if (ac && !inAd && !hidden && ac.state === 'suspended') ac.resume(); }
+  function suspend(){ if (ac && ac.state === 'running'){ drillOff(); ac.suspend(); } }
+  function tone(freq, t, dur, type, vol, bus, slideTo){
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .008); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g); g.connect(bus || sfxBus); o.start(t); o.stop(t + dur + .03);
+  }
+  function noise(t, dur, vol, freq, type, bus){
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noiseBuf; f.type = type || 'lowpass'; f.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(bus || sfxBus); s.start(t, Math.random() * .3); s.stop(t + dur + .03);
+  }
+  const seq = (notes, gap, type, vol, dur) => { const t = ac.currentTime; notes.forEach((m, i) => tone(mf(m), t + i * gap, dur || .25, type || 'triangle', vol || .18)); };
+  const h01 = n => { n = (n ^ 61) ^ (n >>> 16); n = Math.imul(n, 9); n ^= n >>> 4; n = Math.imul(n, 0x27d4eb2d); n ^= n >>> 15; return (n >>> 0) / 4294967296; };
+  function playStep(th, st, t, sd){
+    const s = st % 16, bar = Math.floor(st / 16) % 4, ch = th.ch[bar], phrase = Math.floor(st / 64) % 3;
+    if (s % 8 === 0){ tone(mf(ch[0] - 12), t, sd * 3.6, 'triangle', .34, musBus); tone(120, t, .13, 'sine', .22, musBus, 45); }
+    if (s === 6 || s === 14) tone(mf(ch[0] - 12), t, sd * 1.5, 'triangle', .2, musBus);
+    if (s % 2 === 0) tone(mf(ch[(s / 2) % 3] + 12), t, sd * 1.5, 'square', .035, musBus);
+    if (s % 4 === 2) noise(t, .045, .05, 6000, 'highpass', musBus);
+    const r = h01(bar * 131 + s * 17 + phrase * 977 + playLayer * 7919);
+    if ((s % 4 === 0 && r < .75) || (s % 4 === 2 && r < .3)){
+      const pool = [ch[0], ch[1], ch[2], ch[0] + 2, ch[0] + 12];
+      tone(mf(pool[Math.floor(h01(r * 1e6 | 0) * pool.length)] + 12), t, sd * 2.6, 'triangle', .1, musBus);
+    }
+  }
+  function schedule(){
+    if (!live()) return;
+    if (nextT < ac.currentTime - .2) nextT = ac.currentTime + .05;
+    while (nextT < ac.currentTime + .15){
+      if (step % 16 === 0) playLayer = layer;
+      const th = THEMES[playLayer], sd = 60 / th.bpm / 4;
+      if (SET.mus > 0) playStep(th, step, nextT, sd);
+      nextT += sd; step++;
+    }
+  }
+  function drillOn(li){
+    if (drill || !live()) return;
+    const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1500 - li * 170; f.Q.value = 1.3;
+    const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 78 - li * 6;
+    const og = ac.createGain(); og.gain.value = .35;
+    const g = ac.createGain(); g.gain.value = 0; g.gain.setTargetAtTime(.12, ac.currentTime, .03);
+    const lfo = ac.createOscillator(); lfo.frequency.value = 24; const lg = ac.createGain(); lg.gain.value = .05;
+    lfo.connect(lg); lg.connect(g.gain);
+    s.connect(f); f.connect(g); o.connect(og); og.connect(f);
+    g.connect(sfxBus); s.start(); o.start(); lfo.start();
+    drill = {s, o, lfo, g};
+  }
+  function drillOff(){
+    if (!drill) return; const d = drill; drill = null;
+    try { d.g.gain.cancelScheduledValues(ac.currentTime); d.g.gain.setTargetAtTime(0, ac.currentTime, .025); } catch(e){}
+    setTimeout(() => { try { d.s.stop(); d.o.stop(); d.lfo.stop(); } catch(e){} }, 200);
+  }
+  document.addEventListener('visibilitychange', () => { hidden = document.hidden; hidden ? suspend() : resume(); });
+  const L = fn => (...a) => { if (live()) fn(...a); };
+  return {
+    init, applyVol,
+    setLayer(li){ layer = li; },
+    adPause(on){ inAd = on; on ? suspend() : resume(); },
+    drill(on, li){ on ? drillOn(li) : drillOff(); },
+    brk: L(li => { const t = ac.currentTime; noise(t, .14, .35, 700 - li * 60); tone(140 - li * 10, t, .12, 'triangle', .25, sfxBus, 50); }),
+    ore: L(p => {
+      if (p < 10) seq([84, 91], .06, 'sine', .16, .3);
+      else if (p < 100) seq([84, 88, 91, 96], .055, 'triangle', .15, .35);
+      else if (p < 600) seq([79, 84, 88, 91, 96, 100], .05, 'triangle', .16, .4);
+      else { seq([72, 76, 79, 84, 88, 91, 96, 100, 103, 108], .045, 'square', .07, .45); seq([96, 103, 108], .12, 'sine', .12, .8); }
+    }),
+    find: L(() => { seq([84, 88, 91, 96, 100, 103], .06, 'sine', .2, .5); seq([60, 67, 72], .18, 'triangle', .15, .6); }),
+    full: L(() => seq([52, 48], .12, 'square', .09, .18)),
+    clunk: L(() => { const t = ac.currentTime; tone(90, t, .15, 'square', .14, sfxBus, 60); noise(t, .08, .3, 400); }),
+    coins: L(() => seq([88, 91, 96, 91, 96, 100, 103], .06, 'square', .06, .2)),
+    buy: L(() => seq([72, 76, 79, 84, 88], .07, 'square', .08, .25)),
+    claim: L(() => seq([72, 79, 84, 88, 91, 96], .07, 'triangle', .2, .35)),
+    quest: L(() => seq([76, 79, 84, 91], .09, 'triangle', .2, .4)),
+    layerUp: L(() => seq([67, 72, 76, 79, 84], .11, 'triangle', .2, .45)),
+    home: L(() => tone(300, ac.currentTime, .35, 'sine', .15, sfxBus, 1400)),
+    fail: L(() => seq([67, 63, 60, 55], .15, 'square', .08, .3)),
+    win: L(() => { seq([60, 64, 67, 72, 67, 72, 76, 79, 84], .12, 'square', .08, .35); seq([48, 55, 60], .36, 'triangle', .25, .8); }),
+    hurt: L(() => { const t = ac.currentTime; tone(260, t, .28, 'square', .15, sfxBus, 70); noise(t, .2, .25, 900); }),
+    boom: L(() => { const t = ac.currentTime; noise(t, .6, .7, 320); tone(95, t, .5, 'sine', .45, sfxBus, 28); }),
+    sizzle: L(() => noise(ac.currentTime, .45, .3, 3000, 'highpass')),
+    hiss: L(() => noise(ac.currentTime, .9, .18, 2200, 'bandpass')),
+    thud: L(() => { const t = ac.currentTime; tone(70, t, .2, 'sine', .3, sfxBus, 40); noise(t, .12, .25, 300); }),
+    toss: L(() => tone(700, ac.currentTime, .2, 'triangle', .12, sfxBus, 250)),
+    warn: L(urgent => urgent ? seq([93, 93, 93], .11, 'square', .09, .09) : seq([88, 88], .18, 'square', .07, .12)),
+  };
+})();
+addEventListener('pointerdown', () => SND.init(), true);
+addEventListener('keydown', () => SND.init(), true);
+
+// ===================== UI: базовое =====================
+const $ = id => document.getElementById(id);
+const modal = $('modal'), card = $('card');
+function openModal(html){ card.innerHTML = html; card.scrollTop = 0; modal.classList.add('show'); paused = true; keyStack.length = 0; refreshPad(); gameplay(false); }
+function closeModal(){ modal.classList.remove('show'); paused = false; gameplay(true); hud(); }
+let toastT; function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
+let bannerT; function banner(msg){ const b = $('banner'); b.textContent = msg; b.classList.add('show'); clearTimeout(bannerT); bannerT = setTimeout(() => b.classList.remove('show'), 2600); }
+const bind = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+function applyPrefs(){
+  document.body.classList.toggle('big', !!SET.big);
+  document.body.classList.toggle('swap', !!SET.swap);
+  $('hint').style.display = SET.hints && !hintHidden ? '' : 'none';
+}
+
+function hud(){
+  const y = curY(), n = S.cargo.length, cap = bagCap();
+  $('money').textContent = '💰 ' + fmt(S.money);
+  $('depth').textContent = '📏 ' + fmt(y * M_PER_TILE) + ' м';
+  $('bag').textContent = '🎒 ' + n + '/' + cap + (n ? ' · ' + fmt(cargoValue()) + '💰' : '');
+  $('bag').style.color = n >= cap ? '#ffd0c8' : '';
+  $('bag').classList.toggle('warn', sensOn('bag') && y > 0 && cap - n <= 2 && n > 0);
+  $('star').classList.toggle('hide', !S.rebirths); $('star').textContent = '⭐ ×' + fmtM(rebirthMult());
+  const k = Math.max(0, S.fuel / tankCap());
+  $('fuel').style.width = (k * 100) + '%';
+  $('fuelTxt').textContent = 'ТОПЛИВО ' + Math.ceil(S.fuel) + '/' + tankCap();
+  $('fuelWrap').classList.toggle('warn', sensOn('fuel') && y > 0 && k < .3);
+  const onSurface = P.y === 0 && !P.moving;
+  $('homeBtn').classList.toggle('hide', onSurface);
+  $('shopBtn').classList.toggle('hide', !onSurface);
+  $('bombBtn').classList.toggle('hide', !S.bombs || onSurface);
+  $('bombBtn').textContent = '💣 ' + S.bombs;
+  const done = S.quests.find(q => q.done), q = done || S.quests[0];
+  $('quest').classList.toggle('done', !!done);
+  $('quest').textContent = done ? '✅ Задание выполнено — забери награду!' : q ? '📜 ' + qText(q) + ' · ' + qHave(q) : '';
+  $('menuBtn').classList.toggle('on', !!done || dailyInfo().avail);
+}
+
+// ===================== ЗАДАНИЯ =====================
+const qScale = () => Math.max(40, Math.round(nextPickCost() * .3));
+function genQuest(){
+  const taken = new Set(S.quests.map(q => q.k + ':' + (q.id == null ? '' : q.id)));
+  for (let tries = 0; tries < 25; tries++){
+    const kinds = ['ore', 'ore', 'dig', 'earn'];
+    if (S.best < ROWS - 16) kinds.push('depth', 'depth');
+    if (S.bombs > 0) kinds.push('bomb');
+    const k = kinds[Math.random() * kinds.length | 0], sc = qScale(), m = rebirthMult();
+    let q;
+    if (k === 'ore'){
+      const pool = [];
+      for (let li = 0; li <= S.seen; li++) LAYERS[li].ores.forEach(([id]) => { if (!pool.includes(OI[id])) pool.push(OI[id]); });
+      const id = pool[Math.random() * pool.length | 0], p = ORES[id].p, need = clamp(Math.round(40 / Math.sqrt(p)), 1, 12);
+      q = {k, id, need, reward:Math.round((need * p * 1.2 + sc * .3) * m)};
+    } else if (k === 'depth'){
+      q = {k, need:Math.min(ROWS - 2, S.best + 12 + (Math.random() * 10 | 0)), reward:Math.round(sc * m)};
+    } else if (k === 'dig'){
+      q = {k, need:30 + 10 * (Math.random() * 6 | 0), reward:Math.round(sc * .6 * m)};
+    } else if (k === 'earn'){
+      q = {k, need:Math.max(50, Math.round(sc * 3 * m / 10) * 10), reward:Math.round(sc * .5 * m)};
+    } else q = {k, need:2, reward:Math.round(sc * .4 * m)};
+    if (taken.has(q.k + ':' + (q.id == null ? '' : q.id))) continue;
+    q.have = q.k === 'depth' ? S.best : 0; q.done = q.have >= q.need;
+    return q;
+  }
+  return {k:'dig', need:40, have:0, reward:qScale(), done:false};
+}
+function ensureQuests(){ if (!Array.isArray(S.quests)) S.quests = []; while (S.quests.length < 3) S.quests.push(genQuest()); }
+function qText(q){
+  switch (q.k){
+    case 'ore': return 'Добудь ' + ORES[q.id].e + ' ' + ORES[q.id].n + ' ×' + q.need;
+    case 'depth': return 'Спустись до ' + fmt(q.need * M_PER_TILE) + ' м';
+    case 'dig': return 'Разбей ' + q.need + ' блоков';
+    case 'earn': return 'Заработай ' + fmt(q.need) + ' 💰';
+    default: return 'Взорви динамит ×' + q.need;
+  }
+}
+const qHave = q => q.k === 'depth' ? fmt(q.have * M_PER_TILE) + '/' + fmt(q.need * M_PER_TILE) + ' м' : fmt(q.have) + '/' + fmt(q.need);
+function qProg(k, id, v){
+  let changed = false;
+  for (const q of S.quests){
+    if (q.done || q.k !== k || (k === 'ore' && q.id !== id)) continue;
+    q.have = k === 'depth' ? Math.max(q.have, v) : q.have + v;
+    if (q.have >= q.need){ q.have = q.need; q.done = true; SND.quest(); toast('✅ Задание выполнено! Награда ждёт в ☰ Меню'); }
+    changed = true;
+  }
+  if (changed) hud();
+}
+
+// ===================== ЕЖЕДНЕВНАЯ НАГРАДА =====================
+const dstr = d => d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+function dailyInfo(){
+  const today = dstr(new Date()), yd = new Date(); yd.setDate(yd.getDate() - 1);
+  const avail = S.daily.last !== today;
+  const day = avail ? (S.daily.last === dstr(yd) ? S.daily.streak % 7 + 1 : 1) : S.daily.streak;
+  return {avail, day, today};
+}
+const dailyBase = () => Math.max(50, Math.round(nextPickCost() * .15 * rebirthMult()));
+
+// ===================== МОДАЛКИ =====================
+function sellModal(){
+  const counts = {}; S.cargo.forEach(i => counts[i] = (counts[i] || 0) + 1);
+  const tot = cargoValue();
+  openModal(`<h2>Добыча 💰</h2>
+    <div class="items">${Object.keys(counts).map(i => `<span class="item">${ORES[i].e} ${ORES[i].n} ×${counts[i]}</span>`).join('')}</div>
+    <p>Бонус к цене: ×${fmtM(sellMult())} (⭐ перерождения ×${fmtM(rebirthMult())}, 📖 коллекция +${foundCount() * 2}%)</p>
+    <div class="total">Итого: ${fmt(tot)} 💰</div>
+    <div class="col">
+      <button class="btn alt" id="bx2">📺 Продать ×2 — ${fmt(tot * 2)} 💰</button>
+      <button class="btn" id="b1">Продать за ${fmt(tot)} 💰</button>
+    </div>`);
+  const sell = mult => {
+    const amt = tot * mult;
+    S.money += amt; S.cargo = []; closeModal(); SND.coins(); qProg('earn', null, amt); save();
+    const canBuy = Object.keys(UP).some(k => S[k] < UP[k].vals.length - 1 && S.money >= UP[k].cost[S[k] + 1]);
+    toast('+' + fmt(amt) + ' 💰' + (canBuy ? ' — можно купить улучшение в 🛒!' : ''));
+  };
+  bind('b1', () => { sell(1); maybeInterstitial(); });
+  bind('bx2', () => showRewarded(() => sell(2)));
+}
+
+let giftTimer = 0;
+function shopModal(){
+  const ups = Object.keys(UP).map(k => {
+    const u = UP[k], l = S[k], max = l >= u.vals.length - 1, c = u.cost[l + 1];
+    return `<div class="up"><div><b>${u.name} · ур. ${l + 1}</b><small>${max ? 'Максимум!' : u.f(u.vals[l]) + ' → ' + u.f(u.vals[l + 1])}</small></div>
+      ${max ? '' : `<button class="btn" data-k="${k}" ${S.money < c ? 'disabled' : ''}>${fmt(c)} 💰</button>`}</div>`;
+  }).join('');
+  const bp = bombPrice();
+  const sens = SENSORS.map(s => `<div class="up"><div><b>${s.n}</b><small>${s.d}</small></div>
+    ${S.sens[s.k] ? '<button class="btn" disabled>Куплено ✓</button>' : `<button class="btn" data-s="${s.k}" ${S.money < s.c ? 'disabled' : ''}>${s.c} 💰</button>`}</div>`).join('');
+  const gift = Math.max(30, Math.round(nextPickCost() * .25));
+  openModal(`<h2>🛒 Магазин</h2><p>У тебя ${fmt(S.money)} 💰</p><div class="col">
+    <h3>Улучшения</h3>${ups}
+    <h3>Расходники</h3>
+    <div class="up"><div><b>💣 Динамит</b><small>Взрывает 3×3 перед тобой и собирает руду. Есть: ${S.bombs}</small></div>
+      <div class="stack"><button class="btn" id="bb1" ${S.money < bp ? 'disabled' : ''}>${fmt(bp)} 💰</button><button class="btn" id="bb5" ${S.money < bp * 4 ? 'disabled' : ''}>×5 за ${fmt(bp * 4)}</button></div></div>
+    <h3>Датчики</h3>${sens}
+    <button class="btn alt" id="gift"></button>
+    <button class="btn dark" id="close">Копать дальше ⛏</button></div>`);
+  card.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
+    const k = b.dataset.k, c = UP[k].cost[S[k] + 1];
+    if (S.money < c) return;
+    S.money -= c; S[k]++; if (k === 'tank') S.fuel = tankCap(); SND.buy(); save(); shopModal();
+  });
+  card.querySelectorAll('[data-s]').forEach(b => b.onclick = () => {
+    const s = SENSORS.find(x => x.k === b.dataset.s); if (S.money < s.c) return;
+    S.money -= s.c; S.sens[s.k] = true; S.sens[s.k + 'On'] = true; SND.buy(); save(); shopModal();
+  });
+  const buyBombs = (n, c) => { if (S.money < c) return; S.money -= c; S.bombs += n; SND.buy(); save(); shopModal(); };
+  bind('bb1', () => buyBombs(1, bp));
+  bind('bb5', () => buyBombs(5, bp * 4));
+  const giftBtn = $('gift');
+  const tick = () => {
+    if (!giftBtn.isConnected){ clearInterval(giftTimer); return; }
+    const left = Math.max(0, (S.giftAt || 0) - Date.now());
+    giftBtn.disabled = left > 0;
+    if (left > 0){ const s = Math.ceil(left / 1000); giftBtn.textContent = '🎁 Подарок через ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+    else giftBtn.textContent = '📺 Подарок: +' + fmt(gift) + ' 💰';
+  };
+  clearInterval(giftTimer); giftTimer = setInterval(tick, 1000); tick();
+  giftBtn.onclick = () => {
+    if ((S.giftAt || 0) > Date.now()) return;
+    showRewarded(() => { S.money += gift; SND.coins(); S.giftAt = Date.now() + GIFT_EVERY; save(); shopModal(); });
+  };
+  bind('close', closeModal);
+}
+
+function menuModal(){
+  const dq = S.quests.some(q => q.done), dd = dailyInfo().avail;
+  openModal(`<h2>☰ Меню</h2><div class="col">
+    <button class="btn ${dq ? '' : 'dark'} badge ${dq ? 'on' : ''}" id="mQ">📜 Задания</button>
+    <button class="btn ${dd ? '' : 'dark'} badge ${dd ? 'on' : ''}" id="mD">🎁 Ежедневная награда</button>
+    <button class="btn dark" id="mC">📖 Коллекция (${foundCount()}/${ORES.length})</button>
+    <button class="btn dark" id="mL">🏆 Рейтинг</button>
+    <button class="btn dark" id="mS">🎨 Скины</button>
+    <button class="btn dark" id="mR">🌋 Перерождение${S.rebirths ? ' · ⭐' + S.rebirths : ''}</button>
+    <button class="btn dark" id="mO">⚙️ Настройки</button>
+    <button class="btn" id="close">Играть ⛏</button></div>`);
+  bind('mQ', questsModal); bind('mD', () => dailyModal(true)); bind('mC', collectionModal);
+  bind('mL', leaderModal); bind('mS', skinsModal); bind('mR', rebirthModal); bind('mO', settingsModal);
+  bind('close', closeModal);
+}
+
+function questsModal(){
+  openModal(`<h2>📜 Задания</h2><div class="col">${S.quests.map((q, i) => `<div class="q"><div style="flex:1;min-width:0"><b>${qText(q)}</b>
+      <small>Награда: ${fmt(q.reward)} 💰 · ${qHave(q)}</small><div class="prog"><i style="width:${Math.min(100, q.have / q.need * 100)}%"></i></div></div>
+      ${q.done ? `<button class="btn" data-q="${i}">Забрать</button>` : ''}</div>`).join('')}
+    <button class="btn dark" id="back">← Назад</button></div>`);
+  card.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
+    const i = +b.dataset.q, q = S.quests[i]; if (!q || !q.done) return;
+    S.money += q.reward; S.quests.splice(i, 1); S.quests.push(genQuest());
+    SND.claim(); toast('+' + fmt(q.reward) + ' 💰'); save(); questsModal();
+  });
+  bind('back', menuModal);
+}
+
+function dailyModal(fromMenu){
+  const d = dailyInfo(), base = dailyBase();
+  const cells = DAILY_MUL.map((m, i) => {
+    const n = i + 1, cls = d.avail ? (n < d.day ? 'got' : n === d.day ? 'cur' : '') : (n <= d.day ? 'got' : '');
+    return `<div class="day ${cls}"><b>${n}</b>${n === 7 ? '🎁' : '💰'}<br>${fmt(base * m)}${n === 7 ? '<br>+3💣' : ''}</div>`;
+  }).join('');
+  const mid = new Date(); mid.setHours(24, 0, 0, 0); const left = Math.max(0, mid - Date.now());
+  const hh = Math.floor(left / 3600000), mm = Math.floor(left / 60000) % 60;
+  openModal(`<h2>🎁 Ежедневная награда</h2><p>Заходи каждый день подряд — награда растёт. Пропустишь день — серия начнётся заново.</p>
+    <div class="days">${cells}</div><div class="col">
+    ${d.avail ? `<button class="btn alt" id="dx2">📺 Забрать ×2 — ${fmt(base * DAILY_MUL[d.day - 1] * 2)} 💰</button>
+      <button class="btn" id="d1">Забрать ${fmt(base * DAILY_MUL[d.day - 1])} 💰</button>`
+      : `<button class="btn" disabled>Следующая через ${hh} ч ${mm} мин</button>`}
+    <button class="btn dark" id="back">${fromMenu ? '← Назад' : 'Позже'}</button></div>`);
+  const claim = mult => {
+    const info = dailyInfo(); if (!info.avail) return;
+    const amt = Math.round(dailyBase() * DAILY_MUL[info.day - 1] * mult);
+    S.money += amt; if (info.day === 7) S.bombs += 3;
+    S.daily = {last:info.today, streak:info.day};
+    SND.claim(); toast('🎁 +' + fmt(amt) + ' 💰' + (info.day === 7 ? ' и 3 💣' : '')); save();
+    fromMenu ? menuModal() : closeModal();
+  };
+  bind('d1', () => claim(1));
+  bind('dx2', () => showRewarded(() => claim(2)));
+  bind('back', fromMenu ? menuModal : closeModal);
+}
+
+function collectionModal(){
+  const n = foundCount();
+  openModal(`<h2>📖 Коллекция</h2><p>Открыто ${n} из ${ORES.length}. Каждая новая находка навсегда даёт +2% к цене продажи (сейчас +${n * 2}%).</p>
+    <div class="grid">${ORES.map((o, i) => S.found[i]
+      ? `<div class="cell"><span class="big">${o.e}</span><b>${o.n}</b><small style="opacity:.65">найдено: ${S.found[i]} · ${fmt(price(i))} 💰</small></div>`
+      : `<div class="cell lock"><span class="big">❓</span><b>???</b><small style="opacity:.65">${LAYERS[oreLayer(i)].name}</small></div>`).join('')}</div>
+    <div class="col"><button class="btn dark" id="back">← Назад</button></div>`);
+  bind('back', menuModal);
+}
+
+async function leaderModal(){
+  openModal(`<h2>🏆 Рейтинг глубины</h2><div id="lbBody"><p>Загрузка…</p></div><div class="col"><button class="btn dark" id="back">← Назад</button></div>`);
+  bind('back', menuModal);
+  const body = $('lbBody'), my = totalScore();
+  const mine = `<p style="margin-top:10px">Твой результат: <b>${fmt(my)} м</b>${S.rebirths ? ' (с учётом перерождений)' : ''}</p>`;
+  const lb = await lbApi();
+  if (!body.isConnected) return;
+  if (!lb){ body.innerHTML = mine + '<p style="opacity:.7">Общий рейтинг игроков работает, когда игра запущена на Яндекс Играх.</p>'; return; }
+  try {
+    await lbSubmit();
+    const res = await lb.get();
+    if (!body.isConnected) return;
+    const rows = (res.entries || []).map(e => `<div class="lb ${res.userRank && e.rank === res.userRank ? 'me' : ''}"><span>${e.rank}. ${esc((e.player && e.player.publicName) || 'Аноним')}</span><b>${fmt(e.score)} м</b></div>`).join('');
+    body.innerHTML = (rows || '<p>Пока никого — будь первым!</p>') + mine + (isAuthed() ? '' : '<button class="btn alt" id="auth">Войти, чтобы попасть в рейтинг</button>');
+    bind('auth', () => { try { ysdk.auth.openAuthDialog().then(async () => { player = await ysdk.getPlayer({scopes:false}); leaderModal(); }).catch(() => {}); } catch(e){} });
+  } catch(e){ if (body.isConnected) body.innerHTML = '<p>Не удалось загрузить рейтинг.</p>' + mine; }
+}
+
+function skinsModal(){
+  openModal(`<h2>🎨 Скины</h2><div class="grid">${SKINS.map(s => {
+      const own = S.skins.includes(s.id), cur = S.skin === s.id;
+      let btn;
+      if (cur) btn = '<button class="btn" disabled>Надет</button>';
+      else if (own) btn = `<button class="btn" data-wear="${s.id}">Надеть</button>`;
+      else if (s.price === 'ad') btn = `<button class="btn alt" data-ad="${s.id}">📺 ${S.adSkin}/3</button>`;
+      else btn = `<button class="btn" data-buy="${s.id}" ${S.money < s.price ? 'disabled' : ''}>${fmt(s.price)} 💰</button>`;
+      return `<div class="cell ${cur ? 'cur' : ''}"><canvas width="128" height="128" data-skin="${s.id}" style="width:64px;height:64px"></canvas><b>${s.n}</b>${btn}</div>`;
+    }).join('')}</div><div class="col"><button class="btn dark" id="back">← Назад</button></div>`);
+  card.querySelectorAll('canvas[data-skin]').forEach(c => {
+    const g = c.getContext('2d'); g.scale(2, 2);
+    drawRobot(g, 4, 6, 56, SKINS.find(s => s.id === c.dataset.skin), 1, false, false, false);
+  });
+  card.querySelectorAll('[data-wear]').forEach(b => b.onclick = () => { S.skin = b.dataset.wear; save(); skinsModal(); });
+  card.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => {
+    const s = SKINS.find(x => x.id === b.dataset.buy); if (S.money < s.price) return;
+    S.money -= s.price; S.skins.push(s.id); S.skin = s.id; SND.buy(); save(); skinsModal();
+  });
+  card.querySelectorAll('[data-ad]').forEach(b => b.onclick = () => showRewarded(() => {
+    S.adSkin++; if (S.adSkin >= 3 && !S.skins.includes('alien')){ S.skins.push('alien'); S.skin = 'alien'; SND.claim(); toast('👽 Скин «Пришелец» открыт!'); }
+    save(); skinsModal();
+  }));
+  bind('back', menuModal);
+}
+
+function rebirthModal(){
+  const next = 1 + .5 * (S.rebirths + 1);
+  openModal(`<h2>🌋 Перерождение</h2><p>Начни заново в новом мире, но с постоянным бонусом к доходу. Можно перерождаться снова и снова.</p>
+    <div class="total">Доход: ×${fmtM(rebirthMult())} → ×${fmtM(next)}</div>
+    <p>Сбросятся: деньги, улучшения, рекорд глубины, задания и карта.<br>Останутся: коллекция, скины, динамит, датчики и бонус.</p>
+    <div class="col">${S.won ? '<button class="btn" id="rb">Переродиться!</button>' : '<button class="btn" disabled>Сначала доберись до ядра 🌋</button>'}
+    <button class="btn dark" id="back">← Назад</button></div>`);
+  bind('rb', () => {
+    const keep = {found:S.found, skins:S.skins, skin:S.skin, adSkin:S.adSkin, bombs:S.bombs, sens:S.sens, daily:S.daily, giftAt:S.giftAt, intro:true, rebirths:S.rebirths + 1};
+    S = Object.assign(newState(), keep);
+    world = generate(S.seed); S.x = 6; S.y = 0; placePlayer(); ensureQuests();
+    save(); lbSubmit(); SND.win(); closeModal(); banner('⭐ Перерождение! Доход ×' + fmtM(rebirthMult()));
+  });
+  bind('back', menuModal);
+}
+
+function settingsModal(){
+  const chk = (id, label, val) => `<label class="set"><span>${label}</span><input type="checkbox" id="${id}" ${val ? 'checked' : ''}></label>`;
+  openModal(`<h2>⚙️ Настройки</h2><div class="col">
+    <label class="set"><span>🎵 Музыка</span><input type="range" id="sMus" min="0" max="100" value="${Math.round(SET.mus * 100)}"></label>
+    <label class="set"><span>🔊 Звуки</span><input type="range" id="sSfx" min="0" max="100" value="${Math.round(SET.sfx * 100)}"></label>
+    ${chk('sShake', '📳 Тряска экрана', SET.shake)}
+    ${chk('sBig', '🔘 Большие кнопки', SET.big)}
+    ${chk('sSwap', '↔️ Поменять кнопки местами', SET.swap)}
+    ${chk('sHints', '💡 Подсказки', SET.hints)}
+    ${S.sens.fuel ? chk('sFuel', '⛽ Датчик топлива', S.sens.fuelOn !== false) : ''}
+    ${S.sens.bag ? chk('sBag', '🎒 Датчик рюкзака', S.sens.bagOn !== false) : ''}
+    <button class="btn red" id="reset">🗑 Сбросить прогресс</button>
+    <button class="btn dark" id="back">← Назад</button></div>`);
+  $('sMus').oninput = e => { SET.mus = e.target.value / 100; SND.applyVol(); savePrefs(); };
+  $('sSfx').oninput = e => { SET.sfx = e.target.value / 100; SND.applyVol(); savePrefs(); };
+  const sw = (id, fn) => { const el = $(id); if (el) el.onchange = () => { fn(el.checked); savePrefs(); applyPrefs(); }; };
+  sw('sShake', v => SET.shake = v); sw('sBig', v => SET.big = v); sw('sSwap', v => SET.swap = v); sw('sHints', v => { SET.hints = v; hintHidden = false; });
+  sw('sFuel', v => { S.sens.fuelOn = v; save(); }); sw('sBag', v => { S.sens.bagOn = v; save(); });
+  let armed = false;
+  bind('reset', () => {
+    if (!armed){ armed = true; $('reset').textContent = '⚠️ Точно? Нажми ещё раз — всё удалится'; return; }
+    S = newState(); world = generate(S.seed); placePlayer(); ensureQuests(); save(); cloudFlush();
+    closeModal(); showIntro();
+  });
+  bind('back', menuModal);
+}
+
+function showIntro(){
+  S.intro = true;
+  openModal(`<h2>⛏ Копай до ядра!</h2>
+    <p>Ты — маленький робот-бур. Копай вниз, собирай руду и находки, поднимайся наверх и продавай их. На деньги улучшай кирку, рюкзак, бак и фонарь.</p>
+    <p>Внизу кости динозавров, древний город, база пришельцев… и опасности: 🔥 лава, 💨 газ и падающие валуны. Не копай под камнями!</p>
+    <p style="opacity:.65;font-size:14px">Стрелки/WASD или кнопки. ▲ — реактивный ранец (▲+◀/▶ — копать вбок в воздухе), ▼+◀/▶ — лесенкой вниз, B — динамит, H — наверх, M — меню.</p>
+    <div class="col"><button class="btn" id="go">Поехали!</button></div>`);
+  bind('go', () => { closeModal(); save(); maybeDaily(); });
+}
+function maybeDaily(){ if (dailyInfo().avail) dailyModal(false); }
+
+const onTap = (el, fn) => { el.addEventListener('pointerup', e => { e.preventDefault(); e.stopPropagation(); if (!paused) fn(); }); };
+onTap($('shopBtn'), () => shopModal());
+onTap($('homeBtn'), () => goHome());
+onTap($('bombBtn'), () => useBomb());
+onTap($('menuBtn'), () => menuModal());
+onTap($('quest'), () => questsModal());
+$('c').addEventListener('pointerup', e => {
+  if (paused || P.y !== 0 || P.moving) return;
+  const gy = TS - camY;
+  if (e.clientX >= OX && e.clientX <= OX + TS * 3 && e.clientY >= gy - TS * 1.8 && e.clientY <= gy) shopModal();
+});
+
+// ===================== ВВОД =====================
+const keyStack = [];
+const KEYMAP = {ArrowLeft:'l', KeyA:'l', ArrowRight:'r', KeyD:'r', ArrowDown:'d', KeyS:'d', ArrowUp:'u', KeyW:'u'};
+const press = d => { const i = keyStack.indexOf(d); if (i >= 0) keyStack.splice(i, 1); keyStack.push(d); refreshPad(); };
+const release = d => { const i = keyStack.indexOf(d); if (i >= 0) keyStack.splice(i, 1); refreshPad(); };
+function refreshPad(){ document.querySelectorAll('.pb').forEach(b => b.classList.toggle('on', keyStack.includes(b.dataset.d))); }
+const hideHint = () => { if (!hintHidden){ hintHidden = true; applyPrefs(); } };
+addEventListener('keydown', e => {
+  const k = KEYMAP[e.code];
+  if (k){ e.preventDefault(); if (!paused) press(k); hideHint(); return; }
+  if (paused) return;
+  if (e.code === 'KeyH') goHome();
+  else if (e.code === 'KeyB' || e.code === 'Space'){ e.preventDefault(); useBomb(); }
+  else if (e.code === 'KeyM') menuModal();
+});
+addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) release(k); });
+addEventListener('blur', () => { keyStack.length = 0; refreshPad(); });
+document.querySelectorAll('.pb').forEach(b => {
+  const d = b.dataset.d;
+  b.addEventListener('pointerdown', e => { e.preventDefault(); if (paused) return; try { b.setPointerCapture(e.pointerId); } catch(_){} press(d); hideHint(); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => b.addEventListener(ev, () => release(d)));
+});
+addEventListener('contextmenu', e => e.preventDefault());
+
+// ===================== ЛОГИКА =====================
+function move(x, y, dur){ P.sx = P.x; P.sy = P.y; P.tx = x; P.ty = y; P.t = 0; P.dur = dur; P.moving = true; }
+const shake = v => { shakeT = Math.max(shakeT, v); };
+
+let wf1 = false, wf2 = false, wb = 0;
+function checkSensors(){
+  if (curY() === 0) return;
+  const k = S.fuel / tankCap();
+  if (sensOn('fuel')){
+    if (k < .3 && !wf1){ wf1 = true; SND.warn(false); toast('⚠️ Топлива 30% — пора наверх!'); hud(); }
+    if (k < .12 && !wf2){ wf2 = true; SND.warn(true); toast('🚨 Топливо почти на нуле! Жми «Наверх»'); }
+  }
+  if (sensOn('bag')){
+    const free = bagCap() - S.cargo.length;
+    if (free <= 2 && free > 0 && wb < 1){ wb = 1; SND.warn(false); toast('🎒 В рюкзаке осталось мест: ' + free); }
+    if (free <= 0 && wb < 2){ wb = 2; SND.warn(true); toast('🎒 Рюкзак полон — пора наверх!'); }
+  }
+}
+
+function spend(f){
+  S.fuel -= f;
+  if (S.fuel <= 0){ S.fuel = 0; outOfFuel(); return false; }
+  checkSensors();
+  return true;
+}
+function hurt(n, msg){
+  if (curY() === 0 || paused) return;
+  S.fuel -= n; floatText(curX(), curY(), '-' + n + ' ⛽', '#ff6b6b'); toast(msg); SND.hurt(); shake(.4);
+  if (S.fuel <= 0){ S.fuel = 0; outOfFuel(); } else checkSensors();
+  hud();
+}
+
+function arrive(){
+  if (P.y > S.best) S.best = P.y;
+  qProg('depth', null, P.y);
+  const li = layerIdx(P.y);
+  if (P.y >= 1 && li > S.seen){ S.seen = li; SND.layerUp(); banner('Новый слой: ' + LAYERS[li].name + '!'); }
+  if (P.y === 0 && P.sy > 0) arriveSurface();
+  else if (P.y === 0 && P.x === 1 && P.sx === 2) shopModal();
+  if (P.y >= ROWS - 2 && !S.won){
+    S.won = true; save(); SND.win(); lbSubmit();
+    openModal(`<h2>🌋 Ты добрался до ядра!</h2><p>Глубина ${fmt(P.y * M_PER_TILE)} м. Ты прошёл почву, кости динозавров, древний город и базу пришельцев.</p>
+      <p>Теперь доступно <b>перерождение</b>: новый мир и постоянный бонус к доходу ×${fmtM(1 + .5 * (S.rebirths + 1))}.</p>
+      <div class="col"><button class="btn" id="rbm">🌋 Переродиться</button><button class="btn dark" id="ok">Копать ещё</button></div>`);
+    bind('rbm', rebirthModal); bind('ok', closeModal);
+  }
+  hud();
+}
+
+// верхний слой с травой зарастает, пока ты на поверхности — не провалишься в старую шахту
+function regrowTop(){ for (let x = 0; x < COLS; x++) if (world[COLS + x] === 0){ world[COLS + x] = 1; burst(x, 1, '#4caf50', 4); } }
+
+function arriveSurface(){
+  regrowTop();
+  S.fuel = tankCap(); wf1 = wf2 = false; wb = 0;
+  if (S.cargo.length) sellModal();
+  hud(); save(); lbSubmit(); cloudFlush();
+}
+
+function goHome(){
+  if (P.y === 0 && !P.moving) return;
+  P.moving = false; dig = null; P.sy = Math.max(1, P.y); P.x = P.fx = Math.round(P.fx); P.y = P.fy = 0;
+  burst(P.x, 0, '#9fe7ff', 16); SND.home();
+  camY = -H * .45; arrive();
+}
+
+function outOfFuel(){
+  dig = null; keyStack.length = 0; refreshPad(); SND.fail();
+  const keepN = Math.floor(S.cargo.length / 2), lost = S.cargo.length - keepN;
+  S.cargo = S.cargo.slice(0, keepN);
+  if (P.moving){ P.moving = false; P.x = P.fx = P.tx; P.y = P.fy = P.ty; }
+  openModal(`<h2>⛽ Топливо кончилось!</h2><p>Спасательный дрон поднял тебя наверх${lost ? ', но по дороге выпало ' + lost + ' шт. добычи' : ''}.</p>
+    <p>Совет: улучши бак и купи ⛽ датчик топлива в магазине — он предупредит заранее.</p><div class="col"><button class="btn" id="ok">Понятно</button></div>`);
+  bind('ok', () => { closeModal(); goHome(); });
+}
+
+function collectOre(i, x, y){
+  const o = ORES[i];
+  if (S.cargo.length >= bagCap()){ floatText(x, y, 'Рюкзак полон!', '#ff7b6b'); SND.full(); return false; }
+  S.cargo.push(i);
+  const first = !S.found[i];
+  S.found[i] = (S.found[i] || 0) + 1;
+  floatText(x, y, o.e + ' +' + fmt(price(i)), '#ffe27a');
+  if (first){ SND.find(); banner('📖 Новая находка: ' + o.e + ' ' + o.n + '! +2% к продаже'); } else SND.ore(o.p);
+  qProg('ore', i, 1);
+  checkSensors();
+  return true;
+}
+
+function breakTile(x, y){
+  const t = tile(x, y), L = LAYERS[layerIdx(y)];
+  setTile(x, y, 0);
+  burst(x, y, t === 5 ? '#9be36b' : L.c, 10);
+  SND.brk(layerIdx(y));
+  S.blocks++; qProg('dig', null, 1);
+  if (t >= 10) collectOre(t - 10, x, y);
+  if (t === 5){ pending.push({x, y, t:1.1, max:1.1, gas:true}); SND.hiss(); toast('💨 Газ! Быстро отъезжай!'); }
+  hud();
+  spend(1);
+}
+
+function lavaHit(x, y){
+  if (tile(x, y) === 4) setTile(x, y, 0);
+  burst(x, y, '#ff8a00', 14, 1.3); SND.sizzle();
+  hurt(Math.max(8, Math.round(tankCap() * .2)), '🔥 Лава! Часть топлива сгорела');
+}
+
+function explode(cx, cy, gas){
+  SND.boom(); shake(.5); flashes.push({x:cx, y:cy, life:.35});
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++){
+    const x = cx + dx, y = cy + dy;
+    if (x < 0 || x >= COLS || y < 1 || y >= ROWS - 1 || occupied(x, y)) continue;
+    const t = world[y * COLS + x]; if (t === 0 || t === 3) continue;
+    burst(x, y, t === 4 ? '#ff8a00' : LAYERS[layerIdx(y)].c, 6, 1.6);
+    setTile(x, y, 0);
+    if (t === 5) pending.push({x, y, t:.2, max:.2, gas:true}); // цепная реакция
+    else if (!gas){ S.blocks++; qProg('dig', null, 1); if (t >= 10) collectOre(t - 10, x, y); }
+  }
+  if (gas && Math.abs(curX() - cx) <= 1 && Math.abs(curY() - cy) <= 1) hurt(Math.max(10, Math.round(tankCap() * .25)), '💥 Взрыв газа!');
+  hud();
+}
+
+function useBomb(){
+  if (paused || !S.bombs || curY() === 0) return;
+  const f = P.face, dx = f === 1 ? 1 : f === -1 ? -1 : 0, dy = f === 2 ? 1 : f === -2 ? -1 : 0;
+  const cx = clamp(curX() + dx * 2, 0, COLS - 1), cy = clamp(curY() + dy * 2, 1, ROWS - 2);
+  S.bombs--; pending.push({x:cx, y:cy, t:.8, max:.8, gas:false}); SND.toss(); qProg('bomb', null, 1); hud(); save();
+}
+
+// физика: падающие валуны и текущая лава (только рядом с игроком)
+let physAcc = 0;
+function physics(dt){
+  physAcc += dt; if (physAcc < .12) return; physAcc = 0;
+  const y0 = Math.max(1, curY() - 20), y1 = Math.min(ROWS - 2, curY() + 24);
+  for (let y = y1; y >= y0; y--) for (let x = 0; x < COLS; x++){
+    const i = y * COLS + x, t = world[i];
+    if (t !== 2 && t !== 4){ if (wob.has(i)) wob.delete(i); continue; }
+    const bi = i + COLS, below = world[bi];
+    if (t === 2){
+      if (below !== 0 || y + 1 >= ROWS - 1){ if (wob.get(i) === FALLING) SND.thud(); wob.delete(i); continue; }
+      const w = wob.has(i) ? wob.get(i) : null;
+      if (w === null){ wob.set(i, 1.1); continue; }       // начинает шататься — есть время отъехать
+      if (w !== FALLING && w - .12 > 0){ wob.set(i, w - .12); continue; }
+      wob.delete(i);
+      if (occupied(x, y + 1)){
+        world[i] = 0; burst(x, y + 1, '#888', 14, 1.3);
+        hurt(Math.max(5, Math.round(tankCap() * .1)), '🪨 Обвал! Не стой под шатающимся камнем');
+        continue;
+      }
+      world[i] = 0; world[bi] = 2; wob.set(bi, FALLING);
+    } else {
+      if (below === 0){
+        if (occupied(x, y + 1)){ world[i] = 0; lavaHit(x, y + 1); continue; }
+        world[i] = 0; world[bi] = 4; continue;
+      }
+      const dir = Math.random() < .5 ? -1 : 1;
+      for (const d of [dir, -dir]){
+        const nx = x + d; if (nx < 0 || nx >= COLS) continue;
+        if (world[i + d] === 0 && world[i + d + COLS] === 0 && !occupied(nx, y)){ world[i] = 0; world[i + d] = 4; break; }
+      }
+    }
+  }
+}
+
+function update(dt){
+  time += dt; if (shakeT > 0) shakeT -= dt;
+  for (let i = parts.length - 1; i >= 0; i--){ const p = parts[i]; p.life -= dt; p.vy += 18 * dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.life <= 0) parts.splice(i, 1); }
+  for (let i = floats.length - 1; i >= 0; i--){ const f = floats[i]; f.life -= dt; f.y -= dt * .8; if (f.life <= 0) floats.splice(i, 1); }
+  for (let i = flashes.length - 1; i >= 0; i--){ flashes[i].life -= dt; if (flashes[i].life <= 0) flashes.splice(i, 1); }
+  if (paused) return;
+
+  for (let i = pending.length - 1; i >= 0; i--){
+    const e = pending[i]; e.t -= dt;
+    if (e.t <= 0){ pending.splice(i, 1); explode(e.x, e.y, e.gas); if (paused) return; }
+  }
+  physics(dt); if (paused) return;
+
+  if (P.moving){
+    P.jet = P.ty < P.sy;
+    P.t += dt / P.dur;
+    if (P.t >= 1){ P.moving = false; P.x = P.tx; P.y = P.ty; P.fx = P.x; P.fy = P.y; arrive(); }
+    else { P.fx = P.sx + (P.tx - P.sx) * P.t; P.fy = P.sy + (P.ty - P.sy) * P.t; }
+    return;
+  }
+  P.jet = false;
+
+  const hz = keyStack.slice().reverse().find(k => k === 'l' || k === 'r');
+  const inAir = P.y < ROWS - 1 && tile(P.x, P.y + 1) === 0;
+
+  // реактивный ранец: зажатое «вверх» держит в воздухе, можно копать вверх и вбок
+  if (keyStack.includes('u') && P.y > 0){
+    P.jet = true;
+    if (inAir && !spend(dt * .8)) return;
+    if (hz && tryHoriz(hz, dt)) return;
+    P.face = -2;
+    if (tile(P.x, P.y - 1) === 0){ dig = null; if (spend(.6)) move(P.x, P.y - 1, .14); return; }
+    digAt(P.x, P.y - 1, dt); return;
+  }
+  // гравитация (в падении можно рулить вбок — влетать в боковые тоннели)
+  if (inAir){
+    dig = null;
+    if (hz){
+      const dx = hz === 'l' ? -1 : 1, nx = P.x + dx;
+      if (nx >= 0 && nx < COLS && tile(nx, P.y) === 0){
+        P.face = dx;
+        move(nx, (P.y < ROWS - 1 && tile(nx, P.y + 1) === 0) ? P.y + 1 : P.y, .11);
+        return;
+      }
+    }
+    move(P.x, P.y + 1, .09); return;
+  }
+
+  const d = keyStack[keyStack.length - 1];
+  if (!d){ dig = null; return; }
+
+  // ▼ + ◀/▶ — копаем лесенку по диагонали вниз
+  if (hz && keyStack.includes('d') && P.y < ROWS - 1){
+    const dx = hz === 'l' ? -1 : 1, nx = P.x + dx;
+    if (nx < 0 || nx >= COLS){ P.face = 2; digAt(P.x, P.y + 1, dt); return; }
+    P.face = dx;
+    if (tile(nx, P.y) !== 0){ digAt(nx, P.y, dt); return; }
+    if (tile(nx, P.y + 1) !== 0 && hardness(nx, P.y + 1) <= pickPower() * 3){ P.face = 2; digAt(nx, P.y + 1, dt); return; }
+    dig = null; if (P.y === 0 || spend(.2)) move(nx, P.y, .14); return;
+  }
+  if (d === 'l' || d === 'r'){ tryHoriz(d, dt); return; }
+  if (d === 'd' && P.y < ROWS - 1){ P.face = 2; digAt(P.x, P.y + 1, dt); }
+}
+
+function tryHoriz(h, dt){
+  const dx = h === 'l' ? -1 : 1, nx = P.x + dx;
+  P.face = dx;
+  if (nx < 0 || nx >= COLS) return false;
+  if (tile(nx, P.y) === 0){ dig = null; if (P.y === 0 || spend(.2)) move(nx, P.y, .14); return true; }
+  digAt(nx, P.y, dt); return true;
+}
+
+function digAt(nx, ny, dt){
+  if (tile(nx, ny) === 4){ dig = null; lavaHit(nx, ny); return; }
+  const h = hardness(nx, ny);
+  if (h > pickPower() * 3){
+    if (!dig || dig.x !== nx || dig.y !== ny){
+      const lv = needLevel(h);
+      SND.clunk();
+      toast(lv ? '🪨 Слишком твёрдо! Нужна кирка ур. ' + lv + ' (или 💣)' : '🔥 Это мантия — дальше не пройти');
+      dig = {x:nx, y:ny, p:0, need:1, blocked:true};
+    }
+    return;
+  }
+  if (!dig || dig.x !== nx || dig.y !== ny || dig.blocked) dig = {x:nx, y:ny, p:0, need:.12 + .42 * h / pickPower()};
+  dig.p += dt;
+  if (Math.random() < dt * 25) burst(nx, ny, LAYERS[layerIdx(ny)].c, 1, .5);
+  if (dig.p >= dig.need){ breakTile(nx, ny); dig = null; }
+}
+
+function burst(x, y, c, n, sp = 1){
+  for (let i = 0; i < n; i++) parts.push({x:x + .5, y:y + .5, vx:(Math.random() - .5) * 6 * sp, vy:(Math.random() - .8) * 5 * sp, life:.4 + Math.random() * .4, c});
+}
+function floatText(x, y, text, c){ floats.push({x:x + .5, y:y + .3, text, c, life:1.2}); }
+
+// ===================== ОТРИСОВКА =====================
+const cv = $('c'), ctx = cv.getContext('2d');
+let W, H, DPR, TS = 0, OX, emo = [];
+
+function resize(){
+  DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  TS = Math.floor(Math.min(60, W / COLS)); OX = Math.floor((W - COLS * TS) / 2);
+  emo = ORES.map(o => {
+    const c = document.createElement('canvas'); c.width = c.height = Math.ceil(TS * DPR);
+    const g = c.getContext('2d'); g.scale(DPR, DPR); g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = Math.floor(TS * .58) + 'px ' + EF;
+    g.fillText(o.e, TS / 2, TS / 2 + TS * .04); return c;
+  });
+}
+addEventListener('resize', resize);
+
+function rr(g, x, y, w, h, r){ g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+const hash = (x, y) => (((x * 73856093) ^ (y * 19349663)) >>> 0) % 1000 / 1000;
+const ROT = {1:0, '-1':Math.PI, 2:Math.PI / 2, '-2':-Math.PI / 2};
+
+function drawSky(bottom){
+  const g = ctx.createLinearGradient(0, bottom - H, 0, bottom);
+  g.addColorStop(0, '#3f8fe0'); g.addColorStop(1, '#a8dcff');
+  ctx.fillStyle = g; ctx.fillRect(-20, -20, W + 40, bottom + 20);
+  ctx.fillStyle = '#ffe680'; ctx.beginPath(); ctx.arc(W * .82, bottom - TS * 4, TS * .9, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  for (let i = 0; i < 4; i++){
+    const cx = ((i * 260 + time * 12) % (W + 200)) - 100, cy = bottom - TS * (5.5 + (i % 2) * 1.3);
+    ctx.beginPath(); ctx.ellipse(cx, cy, TS * .9, TS * .35, 0, 0, 7); ctx.ellipse(cx + TS * .5, cy - TS * .2, TS * .6, TS * .35, 0, 0, 7); ctx.fill();
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.font = Math.floor(TS * 1.3) + 'px ' + EF; ctx.fillText('🏪', OX + TS * 1.5, bottom + 2);
+  ctx.font = Math.floor(TS * .9) + 'px ' + EF; ctx.fillText('⛽', OX + TS * 3.5, bottom + 2);
+  ctx.font = 'bold ' + Math.max(11, Math.floor(TS * .26)) + 'px system-ui,sans-serif'; ctx.fillStyle = '#1b2a3a';
+  ctx.fillText('МАГАЗИН', OX + TS * 1.5, bottom - TS * 1.35);
+}
+
+function drawRobot(g, px, py, ts, sk, face, digging, jet, lowFuel){
+  if (jet){
+    const fl = .12 + Math.random() * .15;
+    g.fillStyle = '#ff7a00'; g.beginPath(); g.moveTo(px + ts * .32, py + ts * .9); g.lineTo(px + ts * .68, py + ts * .9); g.lineTo(px + ts * .5, py + ts * (1.05 + fl)); g.closePath(); g.fill();
+    g.fillStyle = '#ffe066'; g.beginPath(); g.moveTo(px + ts * .4, py + ts * .9); g.lineTo(px + ts * .6, py + ts * .9); g.lineTo(px + ts * .5, py + ts * (.98 + fl * .6)); g.closePath(); g.fill();
+  }
+  // гусеницы
+  g.fillStyle = '#2b2b2b'; rr(g, px + ts * .1, py + ts * .74, ts * .8, ts * .18, ts * .08); g.fill();
+  g.fillStyle = '#555'; for (let i = 0; i < 4; i++){ g.beginPath(); g.arc(px + ts * (.22 + i * .19), py + ts * .83, ts * .05, 0, 7); g.fill(); }
+  // бур
+  g.save(); g.translate(px + ts / 2, py + ts * .5); g.rotate(ROT[face]);
+  g.fillStyle = sk.drill || '#cfd3da'; g.beginPath(); g.moveTo(ts * .3, -ts * .16); g.lineTo(ts * .3, ts * .16); g.lineTo(ts * .52, 0); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = Math.max(1, ts / 30); const sh = digging ? (time * 40) % 1 : 0;
+  for (let i = 0; i < 3; i++){ const k = (i + sh) / 3; g.beginPath(); g.moveTo(ts * (.3 + k * .2), -ts * .16 * (1 - k)); g.lineTo(ts * (.3 + k * .2), ts * .16 * (1 - k)); g.stroke(); }
+  g.restore();
+  // украшения за корпусом
+  if (sk.x === 'mole'){ g.fillStyle = sk.acc; g.beginPath(); g.arc(px + ts * .3, py + ts * .22, ts * .09, 0, 7); g.arc(px + ts * .7, py + ts * .22, ts * .09, 0, 7); g.fill(); }
+  if (sk.x === 'fins'){
+    g.fillStyle = sk.acc;
+    g.beginPath(); g.moveTo(px + ts * .17, py + ts * .42); g.lineTo(px + ts * .03, py + ts * .74); g.lineTo(px + ts * .17, py + ts * .74); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(px + ts * .83, py + ts * .42); g.lineTo(px + ts * .97, py + ts * .74); g.lineTo(px + ts * .83, py + ts * .74); g.closePath(); g.fill();
+  }
+  // корпус
+  if (sk.x === 'glow'){ g.shadowColor = sk.acc; g.shadowBlur = ts * .35; }
+  g.fillStyle = sk.body; rr(g, px + ts * .16, py + ts * .2, ts * .68, ts * .56, ts * .14); g.fill();
+  g.shadowBlur = 0;
+  g.fillStyle = sk.acc; g.fillRect(px + ts * .16, py + ts * .6, ts * .68, ts * .06);
+  g.fillStyle = sk.win; rr(g, px + ts * .28, py + ts * .29, ts * .44, ts * .22, ts * .07); g.fill();
+  g.fillStyle = sk.eye; const lx = face === -1 ? -.06 : face === 1 ? .06 : 0;
+  g.beginPath(); g.arc(px + ts * (.41 + lx), py + ts * .4, ts * .045, 0, 7); g.arc(px + ts * (.59 + lx), py + ts * .4, ts * .045, 0, 7); g.fill();
+  if (sk.x === 'mole'){ g.fillStyle = '#ff8fb1'; g.beginPath(); g.arc(px + ts * (face === 1 ? .86 : face === -1 ? .14 : .5), py + ts * (face === 1 || face === -1 ? .47 : .56), ts * .06, 0, 7); g.fill(); }
+  // антенна(ы) с лампой
+  const lamp = lowFuel && (time * 4 | 0) % 2 ? '#ff4d3d' : (sk.x === 'antennas' ? sk.eye : '#ffef9a');
+  g.strokeStyle = '#444'; g.lineWidth = Math.max(1, ts / 30);
+  const ants = sk.x === 'antennas' ? [[.36, .3], [.64, .7]] : [[.5, .5]];
+  for (const [a, b] of ants){
+    g.beginPath(); g.moveTo(px + ts * a, py + ts * .2); g.lineTo(px + ts * (a + (b - .5) * .2), py + ts * .06); g.stroke();
+    g.fillStyle = lamp; g.beginPath(); g.arc(px + ts * (a + (b - .5) * .2), py + ts * .05, ts * .055, 0, 7); g.fill();
+  }
+  if (sk.x === 'sparkle'){
+    g.fillStyle = '#fff';
+    for (let k = 0; k < 3; k++){
+      const a = time * 2 + k * 2.1, s = ts * (.04 + .03 * Math.abs(Math.sin(time * 5 + k)));
+      const sx = px + ts * (.5 + Math.cos(a) * .48), sy = py + ts * (.45 + Math.sin(a * 1.3) * .4);
+      g.fillRect(sx - s, sy - s * .25, s * 2, s * .5); g.fillRect(sx - s * .25, sy - s, s * .5, s * 2);
+    }
+  }
+}
+
+function drawLava(sx, sy, x, y){
+  ctx.fillStyle = '#d93f00'; ctx.fillRect(sx, sy, TS, TS + 1);
+  for (let k = 0; k < 3; k++){
+    const ph = time * 1.6 + hash(x + k, y) * 6;
+    ctx.fillStyle = k ? 'rgba(255,150,20,.85)' : 'rgba(255,220,80,.9)';
+    ctx.beginPath(); ctx.arc(sx + TS * (.2 + .6 * hash(x, y + k)), sy + TS * (.5 + .28 * Math.sin(ph)), TS * (.1 + .05 * Math.sin(ph * 1.7)), 0, 7); ctx.fill();
+  }
+  if (tile(x, y - 1) !== 4){ ctx.fillStyle = 'rgba(255,230,120,.7)'; ctx.fillRect(sx, sy, TS, TS * .08); }
+}
+
+let lastFrame = performance.now(), hudAcc = 0;
+function frame(now){
+  const dt = Math.min(.05, (now - lastFrame) / 1000); lastFrame = now;
+  if (AUTO) runAuto(dt);
+  update(dt);
+  SND.setLayer(layerIdx(Math.max(1, P.y)));
+  SND.drill(!paused && !!dig && !dig.blocked, dig ? layerIdx(dig.y) : 0);
+
+  const target = P.fy * TS - H * .45;
+  camY += (target - camY) * Math.min(1, dt * 8);
+  let shx = 0, shy = 0;
+  if (shakeT > 0 && SET.shake){ const a = Math.min(1, shakeT * 3) * TS * .12; shx = (Math.random() - .5) * a * 2; shy = (Math.random() - .5) * a * 2; }
+
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  ctx.translate(shx, shy);
+
+  const groundY = TS - camY;
+  if (groundY > 0) drawSky(Math.min(H, groundY));
+
+  const y0 = Math.max(1, Math.floor(camY / TS) - 1), y1 = Math.min(ROWS - 1, Math.ceil((camY + H) / TS) + 1);
+  for (let y = y0; y <= y1; y++){
+    const L = LAYERS[layerIdx(y)], sy = Math.round(y * TS - camY);
+    if (OX > 0){ ctx.fillStyle = L.c; ctx.fillRect(-20, sy, OX + 20, TS + 1); ctx.fillRect(OX + COLS * TS, sy, W, TS + 1); ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(-20, sy, OX + 20, TS + 1); ctx.fillRect(OX + COLS * TS, sy, W, TS + 1); }
+    for (let x = 0; x < COLS; x++){
+      const i = y * COLS + x, t = world[i], sx = OX + x * TS;
+      if (t === 0){ ctx.fillStyle = L.d; ctx.fillRect(sx, sy, TS, TS + 1); continue; }
+      if (t === 4){ drawLava(sx, sy, x, y); continue; }
+      const v = hash(x, y);
+      ctx.fillStyle = t === 3 ? '#140404' : L.c; ctx.fillRect(sx, sy, TS, TS + 1);
+      ctx.fillStyle = 'rgba(0,0,0,' + (v * .16) + ')'; ctx.fillRect(sx, sy, TS, TS + 1);
+      ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(sx + v * TS * .7, sy + hash(y, x) * TS * .7, TS * .12, TS * .08);
+      ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(sx + hash(y + 3, x) * TS * .7, sy + v * TS * .6, TS * .15, TS * .1);
+      if (t === 2){
+        const w = wob.get(i), wx = (w !== undefined && w !== FALLING) ? Math.sin(time * 70) * TS * .06 : 0;
+        ctx.fillStyle = 'rgba(0,0,0,.33)'; rr(ctx, sx + TS * .1 + wx, sy + TS * .12, TS * .8, TS * .76, TS * .25); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.1)'; rr(ctx, sx + TS * .2 + wx, sy + TS * .2, TS * .3, TS * .15, TS * .07); ctx.fill();
+      }
+      if (t === 5){
+        ctx.fillStyle = 'rgba(140,230,90,.2)'; ctx.fillRect(sx, sy, TS, TS);
+        for (let k = 0; k < 3; k++){ const ph = time * 2 + k * 2 + v * 6; ctx.fillStyle = 'rgba(170,255,120,' + (.35 + .25 * Math.sin(ph)) + ')'; ctx.beginPath(); ctx.arc(sx + TS * (.25 + .25 * k), sy + TS * (.35 + .3 * hash(x + k, y)), TS * .06, 0, 7); ctx.fill(); }
+      }
+      if (t >= 10){ ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.beginPath(); ctx.arc(sx + TS / 2, sy + TS / 2, TS * .38, 0, 7); ctx.fill(); ctx.drawImage(emo[t - 10], sx, sy, TS, TS); }
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; const e = Math.max(2, TS * .06);
+      if (y > 1 && world[i - COLS] === 0) ctx.fillRect(sx, sy, TS, e);
+      if (x > 0 && world[i - 1] === 0) ctx.fillRect(sx, sy, e, TS);
+      if (x < COLS - 1 && world[i + 1] === 0) ctx.fillRect(sx + TS - e, sy, e, TS);
+      if (y === 1){ ctx.fillStyle = '#4caf50'; ctx.fillRect(sx, sy, TS, TS * .14); ctx.fillStyle = '#3d8f40'; ctx.fillRect(sx, sy + TS * .14, TS, TS * .04); }
+    }
+  }
+  if (OX > 0 && groundY > 0 && groundY < H){ ctx.fillStyle = '#3d8f40'; ctx.fillRect(-20, groundY, OX + 20, TS * .18); ctx.fillRect(OX + COLS * TS, groundY, W, TS * .18); }
+
+  if (dig && !dig.blocked){
+    const k = Math.min(1, dig.p / dig.need), sx = OX + dig.x * TS, sy = dig.y * TS - camY, cx = sx + TS / 2, cy = sy + TS / 2;
+    ctx.fillStyle = 'rgba(0,0,0,' + (k * .35) + ')'; ctx.fillRect(sx, sy, TS, TS);
+    ctx.strokeStyle = 'rgba(0,0,0,.65)'; ctx.lineWidth = 2;
+    for (let i = 0; i < 5; i++){ const a = i * 1.26 + hash(dig.x, dig.y) * 6, l = TS * .5 * k; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * l, cy + Math.sin(a) * l * .9); ctx.stroke(); }
+  }
+
+  let px = OX + P.fx * TS, py = P.fy * TS - camY;
+  if (dig && !dig.blocked){ px += (Math.random() - .5) * 2; py += (Math.random() - .5) * 2; }
+  const sk = SKINS.find(s => s.id === S.skin) || SKINS[0];
+  drawRobot(ctx, px, py, TS, sk, P.face, !!dig && !dig.blocked, P.jet, S.fuel / tankCap() < .25);
+
+  for (const p of parts){ ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.c; ctx.fillRect(OX + p.x * TS - 3, p.y * TS - camY - 3, 6, 6); }
+  ctx.globalAlpha = 1;
+
+  // темнота на глубине; фонарь расширяет круг света
+  const dk = Math.min(.92, Math.max(0, (P.fy - 6) / 60));
+  if (dk > 0){
+    const cx = OX + (P.fx + .5) * TS, cy = (P.fy + .5) * TS - camY;
+    const g = ctx.createRadialGradient(cx, cy, TS * (1 + S.lamp * .45), cx, cy, TS * (3.2 + S.lamp * 1.0));
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,' + dk + ')');
+    ctx.fillStyle = g; ctx.fillRect(-20, -20, W + 40, H + 40);
+    // лава светится сама
+    ctx.globalAlpha = .8;
+    for (let y = y0; y <= y1; y++) for (let x = 0; x < COLS; x++) if (world[y * COLS + x] === 4) drawLava(OX + x * TS, Math.round(y * TS - camY), x, y);
+    ctx.globalAlpha = 1;
+  }
+
+  for (const e of pending){
+    const sx = OX + e.x * TS, sy = e.y * TS - camY, k = 1 - e.t / e.max;
+    if (e.gas){ ctx.fillStyle = 'rgba(150,230,90,' + (.25 + .35 * k) + ')'; ctx.beginPath(); ctx.arc(sx + TS / 2, sy + TS / 2, TS * (.4 + 1.1 * k), 0, 7); ctx.fill(); }
+    else {
+      if ((time * 10 | 0) % 2){ ctx.fillStyle = 'rgba(255,60,40,.3)'; ctx.fillRect(sx - TS, sy - TS, TS * 3, TS * 3); }
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = Math.floor(TS * .7) + 'px ' + EF; ctx.fillText('💣', sx + TS / 2, sy + TS / 2);
+    }
+  }
+  for (const f of flashes){
+    ctx.fillStyle = 'rgba(255,200,80,' + Math.min(1, f.life * 2.5) + ')';
+    ctx.beginPath(); ctx.arc(OX + (f.x + .5) * TS, (f.y + .5) * TS - camY, TS * (1.9 - f.life * 2), 0, 7); ctx.fill();
+  }
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold ' + Math.max(12, Math.floor(TS * .36)) + 'px system-ui,sans-serif';
+  for (const f of floats){ ctx.globalAlpha = Math.min(1, f.life * 1.5); ctx.fillStyle = '#000'; ctx.fillText(f.text, OX + f.x * TS + 1, f.y * TS - camY + 1); ctx.fillStyle = f.c; ctx.fillText(f.text, OX + f.x * TS, f.y * TS - camY); }
+  ctx.globalAlpha = 1;
+
+  // полоска топлива — каждый кадр, остальной HUD — 4 раза в секунду
+  $('fuel').style.width = (Math.max(0, S.fuel / tankCap()) * 100) + '%';
+  hudAcc += dt; if (hudAcc > .25){ hudAcc = 0; if (!paused) hud(); }
+  requestAnimationFrame(frame);
+}
+
+// режим скриншотов для карточки игры: index.html?shot=surface|dino|city|alien|shop
+function setupShot(name){
+  const depth = {dino:86, city:132, alien:196}[name] || 0;
+  S = newState(); S.intro = true; S.daily = {last:dstr(new Date()), streak:3};
+  S.seed = 424242; world = generate(S.seed);
+  Object.assign(S, {pick:5, bag:4, tank:5, lamp:6, money:12840, best:depth, seen:layerIdx(Math.max(1, depth)), bombs:4,
+    skin:{dino:'rocket', city:'gold', alien:'neon'}[name] || 'classic', skins:SKINS.map(s => s.id)});
+  for (let i = 0; i < 9; i++) S.found[i] = 3;
+  if (depth){
+    for (let y = 1; y <= depth; y++) setTile(6, y, 0);
+    for (let x = 2; x <= 10; x++) setTile(x, depth, 0);
+    for (let y = depth - 5; y < depth; y++) setTile(3, y, 0);
+    const L = LAYERS[layerIdx(depth)].ores.map(o => 10 + OI[o[0]]);
+    [[4,1],[8,1],[1,0],[11,0],[9,-1],[2,2],[7,2],[10,1],[5,-1]].forEach(([x, dy], k) => setTile(x, depth + dy, L[k % L.length]));
+    if (name === 'alien'){ setTile(11, depth + 2, 4); setTile(12, depth + 2, 4); setTile(12, depth + 1, 4); setTile(1, depth + 2, 5); }
+    S.cargo = L.concat(L).slice(0, 7).map(t => t - 10);
+  }
+  S.fuel = tankCap() * .72; S.x = 7; S.y = depth; ensureQuests();
+  if (name === 'video'){ Object.assign(S, {pick:6, best:0, seen:0, money:3150, cargo:[], x:6, y:0}); S.fuel = tankCap(); }
+  hintHidden = true;
+}
+// автопилот для записи видео геймплея (только в режиме ?shot=video)
+let AUTO = null;
+const AUTO_PLAN = [[0,['d']], [13,['r']], [15,['r'],'bomb'], [16.2,['l']], [18,['u','l']], [19.5,['d']], [23,['r','d']],
+  [26,[],'home'], [27.6,[],'sell'], [29,[],'shop'], [32,[],'close']];
+function runAuto(dt){
+  AUTO.t += dt;
+  let i = 0; while (i + 1 < AUTO_PLAN.length && AUTO.t >= AUTO_PLAN[i + 1][0]) i++;
+  if (AUTO.idx === i) return;
+  AUTO.idx = i; const [, keys, act] = AUTO_PLAN[i];
+  keyStack.length = 0; keys.forEach(k => keyStack.push(k)); refreshPad();
+  if (act === 'bomb') useBomb();
+  if (act === 'home') goHome();
+  if (act === 'sell'){ const b = $('b1'); if (b && b.onclick) b.onclick(); }
+  if (act === 'shop') shopModal();
+  if (act === 'close') closeModal();
+}
+const SHOT = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('shot') : null;
+
+load();
+if (SHOT) setupShot(SHOT);
+ensureQuests();
+resize();
+placePlayer();
+camY = P.fy * TS - H * .45;
+applyPrefs();
+hud();
+setInterval(() => { if (!paused) save(); }, 4000);
+document.addEventListener('visibilitychange', () => { if (document.hidden){ save(); cloudFlush(); } });
+requestAnimationFrame(frame);
+
+if (SHOT){
+  if (SHOT === 'dino'){ banner('Новый слой: Слой динозавров!'); floatText(8, 85, '🦴 +36', '#ffe27a'); }
+  if (SHOT === 'city') floatText(4, 131, '👑 +540', '#ffe27a');
+  if (SHOT === 'shop') shopModal();
+  if (SHOT === 'video') window.__startAuto = () => { AUTO = {t:0, idx:-1}; };
+} else loadSDK().then(async () => {
+  await initCloud();
+  try { ysdk && ysdk.features && ysdk.features.LoadingAPI && ysdk.features.LoadingAPI.ready(); } catch(e){}
+  if (!S.intro) showIntro();
+  else { gameplay(true); maybeDaily(); }
+});
+})();
+</script>
+</body>
+</html>
