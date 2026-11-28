@@ -49,6 +49,7 @@ body.big .pb{width:84px;height:84px;font-size:32px}
 .up{display:flex;justify-content:space-between;align-items:center;gap:10px;background:rgba(255,255,255,.06);border-radius:12px;padding:10px 12px}
 .up small{display:block;opacity:.7;font-weight:400;margin-top:2px}
 .stack{display:flex;flex-direction:column;gap:6px}
+.sel{background:#3a3a3a;color:#fff;border:1px solid #5a4a36;border-radius:8px;padding:4px 8px;font:inherit;font-size:13px;margin-top:4px;max-width:100%}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin-bottom:12px}
 .cell{background:rgba(255,255,255,.07);border-radius:12px;padding:12px 8px;text-align:center;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .cell .big{font-size:30px}
@@ -85,6 +86,7 @@ body.big .pb{width:84px;height:84px;font-size:32px}
     <span class="chip" id="depth">📏 0 м</span>
     <span class="chip" id="bag">🎒 0/6</span>
     <span class="chip hide" id="star">⭐</span>
+    <span class="chip hide" id="helpChip">🤖</span>
   </div>
   <div id="fuelWrap"><div id="fuel"></div><div id="fuelTxt">ТОПЛИВО</div></div>
   <div id="quest"></div>
@@ -147,10 +149,11 @@ const LAYERS = [
 const HAZ = {lava:[0, 0, .006, .01, .014, .024], gas:[0, 0, .004, .008, .012, .016]};
 
 const UP = {
-  pick:{name:'⛏ Кирка',  vals:[1,1.6,2.5,4,6,9,14],       cost:[0,60,250,800,2500,7000,20000], f:v=>'сила '+v},
-  bag: {name:'🎒 Рюкзак', vals:[6,10,16,24,34,48,64],      cost:[0,40,160,500,1500,4500,12000], f:v=>v+' мест'},
-  tank:{name:'⛽ Бак',    vals:[30,50,80,120,170,240,330], cost:[0,40,160,500,1500,4500,12000], f:v=>v+' топлива'},
-  lamp:{name:'🔦 Фонарь', vals:[1,2,3,4,5,6,7],            cost:[0,50,200,600,1800,5000,13000], f:v=>'свет ×'+v},
+  // 10 уровней; кирка пробивает блок, если сила × DIG_K ≥ твёрдость
+  pick:{name:'⛏ Кирка',  vals:[1,1.5,2.2,3,4,5.5,7.5,10,13,17],             cost:[0,80,300,900,2500,6000,14000,32000,70000,150000], f:v=>'сила '+v},
+  bag: {name:'🎒 Рюкзак', vals:[6,9,13,18,24,32,42,55,70,90],                cost:[0,50,200,600,1600,4000,9500,22000,48000,100000], f:v=>v+' мест'},
+  tank:{name:'⛽ Бак',    vals:[30,45,65,90,125,170,230,300,390,500],         cost:[0,50,200,600,1600,4000,9500,22000,48000,100000], f:v=>v+' топлива'},
+  lamp:{name:'🔦 Фонарь', vals:[1,2,3,4,5,6,7,8,9,10],                       cost:[0,60,220,650,1800,4500,10000,22000,45000,90000], f:v=>'свет ×'+v},
 };
 const SENSORS = [
   {k:'fuel', n:'⛽ Датчик топлива',  d:'Пищит и мигает при 30% и 12% топлива', c:150},
@@ -226,6 +229,7 @@ const FALLING = -1;
 function newState(){
   return {money:0, pick:0, bag:0, tank:0, lamp:0, best:0, seen:0, cargo:[], fuel:UP.tank.vals[0], x:6, y:0,
     seed:(Math.random() * 1e9) | 0, won:false, intro:false, giftAt:0, ts:0,
+    helpers:[], hStore:0, hLast:0, hNote:false,
     found:{}, quests:[], daily:{last:'', streak:0}, bombs:0, sens:{fuel:false, bag:false, fuelOn:true, bagOn:true},
     skins:['classic'], skin:'classic', adSkin:0, rebirths:0, blocks:0};
 }
@@ -272,7 +276,9 @@ function hardness(x, y){
   const h = LAYERS[layerIdx(y)].hard;
   return t === 2 ? h * 2.5 : h;
 }
-const needLevel = h => { for (let i = 0; i < UP.pick.vals.length; i++) if (UP.pick.vals[i] * 3 >= h) return i + 1; return 0; };
+const DIG_K = 2; // почва — с нуля, камень — кирка 2, динозавры — 3, город — 4, пришельцы — 6, ядро — 7
+const canDig = h => h <= pickPower() * DIG_K;
+const needLevel = h => { for (let i = 0; i < UP.pick.vals.length; i++) if (UP.pick.vals[i] * DIG_K >= h) return i + 1; return 0; };
 const foundCount = () => Object.keys(S.found).length;
 const rebirthMult = () => 1 + .5 * S.rebirths;
 const sellMult = () => rebirthMult() * (1 + .02 * foundCount());
@@ -496,6 +502,7 @@ function hud(){
   $('bag').style.color = n >= cap ? '#ffd0c8' : '';
   $('bag').classList.toggle('warn', sensOn('bag') && y > 0 && cap - n <= 2 && n > 0);
   $('star').classList.toggle('hide', !S.rebirths); $('star').textContent = '⭐ ×' + fmtM(rebirthMult());
+  $('helpChip').classList.toggle('hide', !S.helpers.length); $('helpChip').textContent = '🤖 ' + fmt(helpersRate()) + '/мин';
   const k = Math.max(0, S.fuel / tankCap());
   $('fuel').style.width = (k * 100) + '%';
   $('fuelTxt').textContent = 'ТОПЛИВО ' + Math.ceil(S.fuel) + '/' + tankCap();
@@ -571,6 +578,76 @@ function dailyInfo(){
 }
 const dailyBase = () => Math.max(50, Math.round(nextPickCost() * .15 * rebirthMult()));
 
+// ===================== ПОМОЩНИКИ (копают сами, даже когда игра закрыта) =====================
+const HELP_PRICE = [25000, 100000, 400000];
+const HELP_RATE = [15, 40, 120, 300, 700, 1600]; // 💰 в минуту на 1-м уровне, по слоям
+const HELP_MAX_LV = 10, HELP_CAP_MIN = 8 * 60, HELP_UNLOCK = 2; // склад на 8 часов; открывается на слое динозавров
+const HELPER_SKIN = {id:'helper', body:'#5ad1ff', acc:'#1d7ea3', win:'#0d2a3a', eye:'#ffffff'};
+const helperLayer = h => Math.min(h.layer, S.seen);
+const helperRate = h => Math.round(HELP_RATE[helperLayer(h)] * (1 + .35 * (h.lv - 1)) * rebirthMult());
+const helpersRate = () => S.helpers.reduce((a, h) => a + helperRate(h), 0);
+const helperUpCost = (i, h) => Math.round(HELP_PRICE[i] * .4 * Math.pow(1.7, h.lv - 1));
+const helperCap = () => helpersRate() * HELP_CAP_MIN;
+// начисляет добычу помощников за прошедшее время; возвращает, сколько добавилось
+function helperTick(){
+  const now = Date.now();
+  if (!S.helpers.length || !S.hLast){ S.hLast = now; return 0; }
+  const min = Math.max(0, now - S.hLast) / 60000;
+  S.hLast = now;
+  const add = Math.min(Math.max(0, helperCap() - S.hStore), helpersRate() * Math.min(min, HELP_CAP_MIN));
+  S.hStore += add;
+  return add;
+}
+function collectHelpers(mult){
+  const base = Math.floor(S.hStore); if (base <= 0) return 0;
+  const amt = base * mult;
+  S.money += amt; S.hStore -= base; SND.coins(); qProg('earn', null, amt); save(); hud();
+  return amt;
+}
+function welcomeModal(){
+  const amt = Math.floor(S.hStore);
+  openModal(`<h2>🤖 С возвращением!</h2><p>Пока тебя не было, помощники копали без остановки и накопали:</p>
+    <div class="total">${fmt(amt)} 💰</div>
+    <p style="opacity:.7;font-size:14px">Склад вмещает добычу за 8 часов — заходи почаще, чтобы ничего не пропало.</p>
+    <div class="col"><button class="btn alt" id="wx2">📺 Забрать ×2 — ${fmt(amt * 2)} 💰</button><button class="btn" id="w1">Забрать</button></div>`);
+  const take = m => { collectHelpers(m); closeModal(); maybeDaily(); };
+  bind('w1', () => take(1));
+  bind('wx2', () => showRewarded(() => take(2)));
+}
+function helpersShopHtml(){
+  if (S.seen < HELP_UNLOCK && !S.helpers.length)
+    return `<div class="up"><div><b>🤖 Помощник</b><small>Откроется, когда доберёшься до слоя динозавров</small></div><button class="btn" disabled>🔒</button></div>`;
+  let html = S.helpers.map((h, i) => {
+    const max = h.lv >= HELP_MAX_LV, c = helperUpCost(i, h);
+    const opts = LAYERS.slice(0, S.seen + 1).map((L, li) => `<option value="${li}" ${li === helperLayer(h) ? 'selected' : ''}>${L.name}</option>`).join('');
+    return `<div class="up"><div style="flex:1;min-width:0"><b>🤖 Помощник ${i + 1} · ур. ${h.lv}</b>
+      <small>${fmt(helperRate(h))} 💰/мин · копает: <select class="sel" data-hl="${i}">${opts}</select></small></div>
+      ${max ? '<button class="btn" disabled>Макс.</button>' : `<button class="btn" data-hu="${i}" ${S.money < c ? 'disabled' : ''}>⬆ ${fmt(c)}</button>`}</div>`;
+  }).join('');
+  if (S.helpers.length < HELP_PRICE.length){
+    const p = HELP_PRICE[S.helpers.length];
+    html += `<div class="up"><div><b>🤖 Нанять помощника${S.helpers.length ? ' ' + (S.helpers.length + 1) : ''}</b><small>Сам копает выбранный слой и приносит монеты — даже когда игра закрыта</small></div>
+      <button class="btn" id="hbuy" ${S.money < p ? 'disabled' : ''}>${fmt(p)} 💰</button></div>`;
+  }
+  if (S.helpers.length) html += `<p style="margin:0;opacity:.75;font-size:14px">Склад помощников: ${fmt(S.hStore)} из ${fmt(helperCap())} 💰. Монеты забираются сами, когда ты поднимаешься наверх.</p>`;
+  return html;
+}
+function bindHelpersShop(){
+  card.querySelectorAll('[data-hl]').forEach(sel => sel.onchange = () => {
+    helperTick(); S.helpers[+sel.dataset.hl].layer = +sel.value; save(); shopModal();
+  });
+  card.querySelectorAll('[data-hu]').forEach(b => b.onclick = () => {
+    const i = +b.dataset.hu, h = S.helpers[i], c = helperUpCost(i, h);
+    if (S.money < c || h.lv >= HELP_MAX_LV) return;
+    helperTick(); S.money -= c; h.lv++; SND.buy(); save(); shopModal();
+  });
+  bind('hbuy', () => {
+    const p = HELP_PRICE[S.helpers.length]; if (S.money < p) return;
+    helperTick(); S.money -= p; S.helpers.push({lv:1, layer:S.seen}); if (!S.hLast) S.hLast = Date.now();
+    SND.claim(); banner('🤖 Помощник нанят! Он уже копает'); save(); shopModal();
+  });
+}
+
 // ===================== МОДАЛКИ =====================
 function sellModal(){
   const counts = {}; S.cargo.forEach(i => counts[i] = (counts[i] || 0) + 1);
@@ -606,6 +683,7 @@ function shopModal(){
   const gift = Math.max(30, Math.round(nextPickCost() * .25));
   openModal(`<h2>🛒 Магазин</h2><p>У тебя ${fmt(S.money)} 💰</p><div class="col">
     <h3>Улучшения</h3>${ups}
+    <h3>Помощники</h3>${helpersShopHtml()}
     <h3>Расходники</h3>
     <div class="up"><div><b>💣 Динамит</b><small>Взрывает 3×3 перед тобой и собирает руду. Есть: ${S.bombs}</small></div>
       <div class="stack"><button class="btn" id="bb1" ${S.money < bp ? 'disabled' : ''}>${fmt(bp)} 💰</button><button class="btn" id="bb5" ${S.money < bp * 4 ? 'disabled' : ''}>×5 за ${fmt(bp * 4)}</button></div></div>
@@ -624,6 +702,7 @@ function shopModal(){
   const buyBombs = (n, c) => { if (S.money < c) return; S.money -= c; S.bombs += n; SND.buy(); save(); shopModal(); };
   bind('bb1', () => buyBombs(1, bp));
   bind('bb5', () => buyBombs(5, bp * 4));
+  bindHelpersShop();
   const giftBtn = $('gift');
   const tick = () => {
     if (!giftBtn.isConnected){ clearInterval(giftTimer); return; }
@@ -758,7 +837,8 @@ function rebirthModal(){
     <div class="col">${S.won ? '<button class="btn" id="rb">Переродиться!</button>' : '<button class="btn" disabled>Сначала доберись до ядра 🌋</button>'}
     <button class="btn dark" id="back">← Назад</button></div>`);
   bind('rb', () => {
-    const keep = {found:S.found, skins:S.skins, skin:S.skin, adSkin:S.adSkin, bombs:S.bombs, sens:S.sens, daily:S.daily, giftAt:S.giftAt, intro:true, rebirths:S.rebirths + 1};
+    const keep = {found:S.found, skins:S.skins, skin:S.skin, adSkin:S.adSkin, bombs:S.bombs, sens:S.sens, daily:S.daily, giftAt:S.giftAt, intro:true, rebirths:S.rebirths + 1,
+      helpers:S.helpers, hStore:S.hStore, hLast:S.hLast, hNote:S.hNote};
     S = Object.assign(newState(), keep);
     world = generate(S.seed); S.x = 6; S.y = 0; placePlayer(); ensureQuests();
     save(); lbSubmit(); SND.win(); closeModal(); banner('⭐ Перерождение! Доход ×' + fmtM(rebirthMult()));
@@ -877,6 +957,7 @@ function arrive(){
   qProg('depth', null, P.y);
   const li = layerIdx(P.y);
   if (P.y >= 1 && li > S.seen){ S.seen = li; SND.layerUp(); banner('Новый слой: ' + LAYERS[li].name + '!'); }
+  if (S.seen >= HELP_UNLOCK && !S.hNote){ S.hNote = true; toast('🤖 Открыт помощник! Он копает за тебя даже без игры — смотри в 🛒 магазине'); }
   if (P.y === 0 && P.sy > 0) arriveSurface();
   else if (P.y === 0 && P.x === 1 && P.sx === 2) shopModal();
   if (P.y >= ROWS - 2 && !S.won){
@@ -894,6 +975,9 @@ function regrowTop(){ for (let x = 0; x < COLS; x++) if (world[COLS + x] === 0){
 
 function arriveSurface(){
   regrowTop();
+  helperTick();
+  const got = collectHelpers(1);
+  if (got) floatText(P.x, -0.4, '🤖 +' + fmt(got), '#7fe3ff');
   S.fuel = tankCap(); wf1 = wf2 = false; wb = 0;
   if (S.cargo.length) sellModal();
   hud(); save(); lbSubmit(); cloudFlush();
@@ -1061,7 +1145,7 @@ function update(dt){
     if (nx < 0 || nx >= COLS){ P.face = 2; digAt(P.x, P.y + 1, dt); return; }
     P.face = dx;
     if (tile(nx, P.y) !== 0){ digAt(nx, P.y, dt); return; }
-    if (tile(nx, P.y + 1) !== 0 && hardness(nx, P.y + 1) <= pickPower() * 3){ P.face = 2; digAt(nx, P.y + 1, dt); return; }
+    if (tile(nx, P.y + 1) !== 0 && canDig(hardness(nx, P.y + 1))){ P.face = 2; digAt(nx, P.y + 1, dt); return; }
     dig = null; if (P.y === 0 || spend(.2)) move(nx, P.y, .14); return;
   }
   if (d === 'l' || d === 'r'){ tryHoriz(d, dt); return; }
@@ -1079,7 +1163,7 @@ function tryHoriz(h, dt){
 function digAt(nx, ny, dt){
   if (tile(nx, ny) === 4){ dig = null; lavaHit(nx, ny); return; }
   const h = hardness(nx, ny);
-  if (h > pickPower() * 3){
+  if (!canDig(h)){
     if (!dig || dig.x !== nx || dig.y !== ny){
       const lv = needLevel(h);
       SND.clunk();
@@ -1135,6 +1219,12 @@ function drawSky(bottom){
   ctx.font = Math.floor(TS * .9) + 'px ' + EF; ctx.fillText('⛽', OX + TS * 3.5, bottom + 2);
   ctx.font = 'bold ' + Math.max(11, Math.floor(TS * .26)) + 'px system-ui,sans-serif'; ctx.fillStyle = '#1b2a3a';
   ctx.fillText('МАГАЗИН', OX + TS * 1.5, bottom - TS * 1.35);
+  // помощники копают рядом с магазином
+  for (let i = 0; i < S.helpers.length; i++){
+    const ts = TS * .72, x = OX + TS * (9.1 + i * 1.2), y = bottom - ts * .92 + Math.sin(time * 9 + i * 2) * 1.5;
+    drawRobot(ctx, x, y, ts, HELPER_SKIN, 2, true, false, false);
+    if (!paused && Math.random() < .25) burst((x - OX + ts / 2) / TS - .5, .55, '#8a5a2e', 1, .4);
+  }
 }
 
 function drawRobot(g, px, py, ts, sk, face, digging, jet, lowFuel){
@@ -1317,6 +1407,7 @@ function setupShot(name){
     S.cargo = L.concat(L).slice(0, 7).map(t => t - 10);
   }
   S.fuel = tankCap() * .72; S.x = 7; S.y = depth; ensureQuests();
+  if (name === 'shop' || name === 'surface'){ S.seen = 3; S.helpers = [{lv:3, layer:3}, {lv:1, layer:2}]; S.hStore = 1540; S.hLast = Date.now(); }
   if (name === 'video'){ Object.assign(S, {pick:6, best:0, seen:0, money:3150, cargo:[], x:6, y:0}); S.fuel = tankCap(); }
   hintHidden = true;
 }
@@ -1359,7 +1450,14 @@ if (SHOT){
   await initCloud();
   try { ysdk && ysdk.features && ysdk.features.LoadingAPI && ysdk.features.LoadingAPI.ready(); } catch(e){}
   if (!S.intro) showIntro();
-  else { gameplay(true); maybeDaily(); }
+  else {
+    gameplay(true);
+    // добыча помощников за время отсутствия
+    const awaySec = S.hLast ? (Date.now() - S.hLast) / 1000 : 0;
+    helperTick();
+    if (S.helpers.length && awaySec > 120 && S.hStore >= 1) welcomeModal(); else maybeDaily();
+  }
+  setInterval(helperTick, 1000);
 });
 })();
 </script>
